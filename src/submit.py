@@ -36,6 +36,14 @@ def make_predictions_for_month(df: pd.DataFrame, model_name: str, future_month: 
     return submission.sort_values(ID_COL).reset_index(drop=True)
 
 
+def make_official_mean_october_baseline(df: pd.DataFrame) -> pd.DataFrame:
+    """Replicate the organizers' sample_submission.ipynb baseline."""
+    train_oct = df[df[MONTH_COL] == df[MONTH_COL].max()]
+    avg_rto_oct = train_oct[TARGET_COL].mean()
+    shops_list = df[ID_COL].unique()
+    return pd.DataFrame({ID_COL: shops_list, "rto": avg_rto_oct})
+
+
 def validate_submission(submission: pd.DataFrame, expected_rows: int = EXPECTED_SUBMISSION_ROWS) -> None:
     if list(submission.columns) != [ID_COL, "rto"]:
         raise ValueError(f"Submission columns must be {[ID_COL, 'rto']}, got {list(submission.columns)}")
@@ -49,17 +57,38 @@ def validate_submission(submission: pd.DataFrame, expected_rows: int = EXPECTED_
         raise ValueError("Submission new_id values must be unique")
 
 
+def validate_saved_csv(path: Path, expected_rows: int = EXPECTED_SUBMISSION_ROWS) -> pd.DataFrame:
+    path = Path(path)
+    if path.stat().st_size >= 1_000_000:
+        raise ValueError(f"Submission is too large: {path.stat().st_size} bytes")
+
+    with path.open("r", encoding="utf-8", newline="") as file:
+        first_line = file.readline().rstrip("\r\n")
+    if first_line != "new_id,rto":
+        raise ValueError(f"First line must be 'new_id,rto', got {first_line!r}")
+
+    saved = pd.read_csv(path)
+    if tuple(saved.shape) != (expected_rows, 2):
+        raise ValueError(f"Expected saved CSV shape {(expected_rows, 2)}, got {saved.shape}")
+    validate_submission(saved, expected_rows=expected_rows)
+    return saved
+
+
 def save_submission(
     submission: pd.DataFrame,
     path: Path,
     make_test_copy: bool = False,
-    write_header: bool = False,
+    write_header: bool = True,
 ) -> Path:
     validate_submission(submission)
     path.parent.mkdir(parents=True, exist_ok=True)
-    submission.to_csv(path, index=False, header=write_header)
-    if path.stat().st_size >= 1_000_000:
+    submission.to_csv(path, index=False, header=write_header, encoding="utf-8")
+    if write_header:
+        validate_saved_csv(path)
+    elif path.stat().st_size >= 1_000_000:
         raise ValueError(f"Submission is too large: {path.stat().st_size} bytes")
     if make_test_copy:
         shutil.copy2(path, PROJECT_ROOT / "test.csv")
+        if write_header:
+            validate_saved_csv(PROJECT_ROOT / "test.csv")
     return path

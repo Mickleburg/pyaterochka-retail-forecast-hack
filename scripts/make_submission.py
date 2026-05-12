@@ -14,7 +14,11 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate X5/Pyaterochka RTO submission.")
     parser.add_argument("--model", choices=MODEL_NAMES, required=True)
     parser.add_argument("--make-test-copy", action="store_true", help="Also copy output to project root as test.csv.")
-    parser.add_argument("--with-header", action="store_true", help="Write CSV header. Contest format normally has no header.")
+    parser.add_argument(
+        "--no-header",
+        action="store_true",
+        help="Debug only. Do not use for Contest: Contest CSV must contain the new_id,rto header.",
+    )
     return parser.parse_args()
 
 
@@ -27,7 +31,7 @@ def main() -> None:
         submission,
         out_path,
         make_test_copy=args.make_test_copy,
-        write_header=args.with_header,
+        write_header=not args.no_header,
     )
     print(f"Saved: {out_path}")
     print(f"shape: {submission.shape}")
