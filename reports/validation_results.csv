@@ -1,0 +1,17 @@
+model,backend,fold,train_months,valid_month,mape_percent
+baseline_last_month,last_month,1,<= 7,8,5.19903302759541
+baseline_last_month,last_month,2,<= 8,9,9.025912479784026
+baseline_last_month,last_month,3,<= 9,10,6.365661473862552
+baseline_last_month,mean,mean,,,6.863535660413997
+baseline_global_growth,global_growth,1,<= 7,8,7.369411957752475
+baseline_global_growth,global_growth,2,<= 8,9,8.22118548609707
+baseline_global_growth,global_growth,3,<= 9,10,8.530524190987869
+baseline_global_growth,mean,mean,,,8.040373878279139
+catboost_mape,trend_fallback,1,<= 7,8,5.160781103368809
+catboost_mape,trend_fallback,2,<= 8,9,9.035668597868415
+catboost_mape,trend_fallback,3,<= 9,10,6.387905455184444
+catboost_mape,mean,mean,,,6.861451718807223
+catboost_log,trend_fallback,1,<= 7,8,5.160781103368809
+catboost_log,trend_fallback,2,<= 8,9,9.035668597868414
+catboost_log,trend_fallback,3,<= 9,10,6.387905455184444
+catboost_log,mean,mean,,,6.8614517188072215

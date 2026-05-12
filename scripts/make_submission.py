@@ -1,0 +1,40 @@
+import argparse
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from src.config import MODEL_NAMES, SUBMISSIONS_DIR, TRAIN_PATH
+from src.features import load_train
+from src.submit import make_predictions_for_month, save_submission
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate X5/Pyaterochka RTO submission.")
+    parser.add_argument("--model", choices=MODEL_NAMES, required=True)
+    parser.add_argument("--make-test-copy", action="store_true", help="Also copy output to project root as test.csv.")
+    parser.add_argument("--with-header", action="store_true", help="Write CSV header. Contest format normally has no header.")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    df = load_train(TRAIN_PATH)
+    submission = make_predictions_for_month(df, args.model)
+    out_path = SUBMISSIONS_DIR / f"test_{args.model}.csv"
+    save_submission(
+        submission,
+        out_path,
+        make_test_copy=args.make_test_copy,
+        write_header=args.with_header,
+    )
+    print(f"Saved: {out_path}")
+    print(f"shape: {submission.shape}")
+    print(submission.head().to_string(index=False))
+    if args.make_test_copy:
+        print(f"Copied to: {ROOT / 'test.csv'}")
+
+
+if __name__ == "__main__":
+    main()
