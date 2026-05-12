@@ -23,10 +23,12 @@ WEIGHT_127 = {8: 0.1, 9: 0.2, 10: 0.7}
 
 REGION_COL = "Регион"
 AREA_COL = "Торговая площадь, категориальный"
-SETTLEMENT_COL = "Населенный пункт"
 CASH_COL = "Количество касс"
 ALCOHOL_COL = "Флаг алкогольной лицензии"
 OPEN_COL = "Дата открытия, категориальный"
+
+SEGMENT_CACHE: dict[tuple, pd.Series] = {}
+RAW_RATIO_CACHE: dict[int, pd.Series] = {}
 
 
 @dataclass
@@ -36,15 +38,11 @@ class Experiment:
     pred_func: callable
     comment: str
     preferred_filename: str = ""
+    force_generate: bool = False
 
 
 def safe_suffix(value: float) -> str:
     return str(value).replace("-", "m").replace(".", "p")
-
-
-def mult_suffix(value: float) -> str:
-    text = f"{value:.4f}".rstrip("0").rstrip(".")
-    return text.replace(".", "")
 
 
 def clip_series(values, index=None) -> pd.Series:
@@ -53,26 +51,15 @@ def clip_series(values, index=None) -> pd.Series:
 
 
 def submission_frame(pred: pd.Series) -> pd.DataFrame:
-    return pd.DataFrame({ID_COL: pred.index, "rto": np.round(pred.to_numpy(dtype=float), 2)}).sort_values(ID_COL).reset_index(drop=True)
+    return (
+        pd.DataFrame({ID_COL: pred.index, "rto": np.round(pred.to_numpy(dtype=float), 2)})
+        .sort_values(ID_COL)
+        .reset_index(drop=True)
+    )
 
 
 def baseline_pred(pivot: pd.DataFrame, month: int) -> pd.Series:
     return pivot[month - 1].copy()
-
-
-def outlier_smooth_pred(pivot: pd.DataFrame, month: int, mode: str, threshold: float, blend: float) -> pd.Series:
-    base = pivot[month - 1].copy()
-    prev_mean = pivot[[month - 4, month - 3, month - 2]].mean(axis=1)
-    deviation = (base / prev_mean - 1.0).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-    if mode == "rollback":
-        mask = deviation > threshold
-    elif mode == "recovery":
-        mask = deviation < -abs(1.0 - threshold)
-    else:
-        mask = deviation.abs() > threshold
-    pred = base.copy()
-    pred.loc[mask] = blend * base.loc[mask] + (1.0 - blend) * prev_mean.loc[mask]
-    return clip_series(pred, index=base.index)
 
 
 def segment_multiplier(
@@ -84,6 +71,10 @@ def segment_multiplier(
     k: int,
     clip_bounds: tuple[float, float],
 ) -> pd.Series:
+    key = (month, tuple(group_cols), float(shrink_weight), int(k), tuple(clip_bounds))
+    if key in SEGMENT_CACHE:
+        return SEGMENT_CACHE[key].copy()
+
     hist = df[df[MONTH_COL] < month].sort_values([ID_COL, MONTH_COL]).copy()
     hist["prev_rto"] = hist.groupby(ID_COL)[TARGET_COL].shift(1)
     hist["growth"] = hist[TARGET_COL] / hist["prev_rto"]
@@ -98,34 +89,96 @@ def segment_multiplier(
 
     current = df[df[MONTH_COL] == month - 1][[ID_COL] + group_cols]
     merged = current.merge(stats[group_cols + ["mult"]], on=group_cols, how="left").set_index(ID_COL)
-    return merged["mult"].reindex(pivot.index).fillna(1.0)
+    result = merged["mult"].reindex(pivot.index).fillna(1.0)
+    SEGMENT_CACHE[key] = result.copy()
+    return result
 
 
-def segment_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int, group_cols: list[str], shrink_weight: float, k: int, clip_bounds: tuple[float, float]) -> pd.Series:
+def segment_pred(
+    df: pd.DataFrame,
+    pivot: pd.DataFrame,
+    month: int,
+    group_cols: list[str],
+    shrink_weight: float,
+    k: int,
+    clip_bounds: tuple[float, float],
+) -> pd.Series:
     base = baseline_pred(pivot, month)
     mult = segment_multiplier(df, pivot, month, group_cols, shrink_weight, k, clip_bounds)
     return clip_series(base * mult, index=base.index)
 
 
-def segment_blend_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int, shrink_weight: float, k: int, clip_bounds: tuple[float, float]) -> pd.Series:
-    base = baseline_pred(pivot, month)
-    r = segment_multiplier(df, pivot, month, [REGION_COL], shrink_weight, k, clip_bounds)
-    a = segment_multiplier(df, pivot, month, [AREA_COL], shrink_weight, k, clip_bounds)
-    c = segment_multiplier(df, pivot, month, [CASH_COL], shrink_weight, k, clip_bounds)
-    mult = 0.50 * r + 0.30 * a + 0.20 * c
-    return clip_series(base * mult, index=base.index)
+def segment_blend_multiplier(
+    df: pd.DataFrame,
+    pivot: pd.DataFrame,
+    month: int,
+    shrink_weight: float = 0.05,
+    k: int = 500,
+    clip_bounds: tuple[float, float] = (0.97, 1.03),
+) -> pd.Series:
+    region = segment_multiplier(df, pivot, month, [REGION_COL], shrink_weight, k, clip_bounds)
+    area = segment_multiplier(df, pivot, month, [AREA_COL], shrink_weight, k, clip_bounds)
+    alcohol = segment_multiplier(df, pivot, month, [ALCOHOL_COL], shrink_weight, k, clip_bounds)
+    return 0.45 * region + 0.35 * area + 0.20 * alcohol
 
 
-def ratio_shrink_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int, beta: float, clip_bounds: tuple[float, float]) -> pd.Series:
+def segment_blend_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int) -> pd.Series:
     base = baseline_pred(pivot, month)
-    region_mult = segment_multiplier(df, pivot, month, [REGION_COL, AREA_COL], 0.30, 300, (0.95, 1.05))
+    return clip_series(base * segment_blend_multiplier(df, pivot, month), index=base.index)
+
+
+def raw_ratio_signal(df: pd.DataFrame, pivot: pd.DataFrame, month: int) -> pd.Series:
+    if month in RAW_RATIO_CACHE:
+        return RAW_RATIO_CACHE[month].copy()
+    region_area = segment_multiplier(df, pivot, month, [REGION_COL, AREA_COL], 0.30, 300, (0.95, 1.05))
     recent = (pivot[month - 1] / pivot[month - 2]).replace([np.inf, -np.inf], np.nan).fillna(1.0).clip(0.85, 1.15)
-    raw_ratio = 0.85 * region_mult + 0.15 * recent
-    final_ratio = (1.0 + beta * (raw_ratio - 1.0)).clip(*clip_bounds)
-    return clip_series(base * final_ratio, index=base.index)
+    result = 0.85 * region_area + 0.15 * recent
+    RAW_RATIO_CACHE[month] = result.copy()
+    return result
 
 
-def residual_centered_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int, limit: float) -> pd.Series:
+def ratio_shrink_ratio(
+    df: pd.DataFrame,
+    pivot: pd.DataFrame,
+    month: int,
+    beta: float,
+    clip_bounds: tuple[float, float],
+) -> pd.Series:
+    ratio = 1.0 + beta * (raw_ratio_signal(df, pivot, month) - 1.0)
+    return ratio.clip(*clip_bounds)
+
+
+def ratio_shrink_pred(
+    df: pd.DataFrame,
+    pivot: pd.DataFrame,
+    month: int,
+    beta: float,
+    clip_bounds: tuple[float, float],
+) -> pd.Series:
+    base = baseline_pred(pivot, month)
+    return clip_series(base * ratio_shrink_ratio(df, pivot, month, beta, clip_bounds), index=base.index)
+
+
+def current_best_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int) -> pd.Series:
+    return ratio_shrink_pred(df, pivot, month, 0.05, (0.97, 1.03))
+
+
+def outlier_smooth_pred(pivot: pd.DataFrame, month: int, mode: str, threshold: float, blend: float) -> pd.Series:
+    base = baseline_pred(pivot, month)
+    prev_mean = pivot[[month - 4, month - 3, month - 2]].mean(axis=1)
+    deviation = (base / prev_mean - 1.0).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    if mode == "rollback":
+        mask = deviation > threshold
+    elif mode == "symmetric":
+        mask = deviation.abs() > threshold
+    else:
+        raise ValueError(f"Unknown outlier mode: {mode}")
+    pred = base.copy()
+    pred.loc[mask] = blend * base.loc[mask] + (1.0 - blend) * prev_mean.loc[mask]
+    return clip_series(pred, index=base.index)
+
+
+def residual_centered_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int, limit: float = 0.01) -> pd.Series:
     base = baseline_pred(pivot, month)
     hist = df[df[MONTH_COL] < month].sort_values([ID_COL, MONTH_COL]).copy()
     hist["prev_rto"] = hist.groupby(ID_COL)[TARGET_COL].shift(1)
@@ -141,126 +194,330 @@ def residual_centered_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int, li
     return clip_series(base * (1.0 + corr), index=base.index)
 
 
+def growth_features(pivot: pd.DataFrame, month: int) -> pd.DataFrame:
+    ratios = pd.DataFrame(
+        {
+            "ratio_8_7": pivot[month - 3] / pivot[month - 4],
+            "ratio_9_8": pivot[month - 2] / pivot[month - 3],
+            "ratio_10_9": pivot[month - 1] / pivot[month - 2],
+        }
+    ).replace([np.inf, -np.inf], np.nan).fillna(1.0)
+    ratios["volatility"] = ratios[["ratio_8_7", "ratio_9_8", "ratio_10_9"]].std(axis=1)
+    ratios["same_direction"] = np.sign(ratios["ratio_10_9"] - 1.0) == np.sign(ratios["ratio_9_8"] - 1.0)
+    prev_mean = pivot[[month - 4, month - 3, month - 2]].mean(axis=1)
+    ratios["october_outlier_score"] = (pivot[month - 1] / prev_mean - 1.0).replace([np.inf, -np.inf], np.nan).fillna(0.0).abs()
+    return ratios
+
+
+def gated_ratio_pred(df: pd.DataFrame, pivot: pd.DataFrame, month: int, gate: str, threshold: float) -> pd.Series:
+    base = baseline_pred(pivot, month)
+    best = current_best_pred(df, pivot, month)
+    ratio = ratio_shrink_ratio(df, pivot, month, 0.05, (0.97, 1.03))
+    feats = growth_features(pivot, month)
+
+    if gate == "stable":
+        mask = feats["volatility"] < threshold
+    elif gate == "unstable":
+        mask = feats["volatility"] >= threshold
+    elif gate == "smallcorr":
+        mask = (ratio - 1.0).abs() < threshold
+    elif gate == "direction":
+        mask = feats["same_direction"]
+    elif gate == "outlier":
+        mask = feats["october_outlier_score"] > threshold
+    else:
+        raise ValueError(f"Unknown gate: {gate}")
+
+    pred = base.copy()
+    pred.loc[mask] = best.loc[mask]
+    return clip_series(pred, index=base.index)
+
+
+def ratio_segment_prior_pred(
+    df: pd.DataFrame,
+    pivot: pd.DataFrame,
+    month: int,
+    beta_model: float,
+    beta_segment: float,
+    segment_kind: str,
+    clip_bounds: tuple[float, float],
+) -> pd.Series:
+    base = baseline_pred(pivot, month)
+    model_ratio = raw_ratio_signal(df, pivot, month)
+    if segment_kind == "region":
+        segment_ratio = segment_multiplier(df, pivot, month, [REGION_COL], 0.05, 500, (0.97, 1.03))
+    elif segment_kind == "area":
+        segment_ratio = segment_multiplier(df, pivot, month, [AREA_COL], 0.05, 500, (0.97, 1.03))
+    elif segment_kind == "alcohol":
+        segment_ratio = segment_multiplier(df, pivot, month, [ALCOHOL_COL], 0.05, 500, (0.97, 1.03))
+    elif segment_kind == "blend":
+        segment_ratio = segment_blend_multiplier(df, pivot, month, 0.05, 500, (0.97, 1.03))
+    else:
+        raise ValueError(f"Unknown segment kind: {segment_kind}")
+    final_ratio = 1.0 + beta_model * (model_ratio - 1.0) + beta_segment * (segment_ratio - 1.0)
+    return clip_series(base * final_ratio.clip(*clip_bounds), index=base.index)
+
+
+def categorical_svd_probe(df: pd.DataFrame) -> str:
+    string_cols = [col for col in df.columns if df[col].dtype == "object"]
+    return (
+        "В данных есть категориальные признаки: "
+        + ", ".join(f"`{col}`" for col in string_cols)
+        + ". Свободного текста нет, поэтому Word2Vec/NLP не выглядит оправданным. "
+        "Для микрокоррекций уже используются сегментные признаки; отдельный embedding-сабмит не генерировался."
+    )
+
+
 def build_experiments(df: pd.DataFrame, pivot: pd.DataFrame) -> list[Experiment]:
     experiments: list[Experiment] = [
-        Experiment("baseline_last_month", "baseline_last_month", lambda month: baseline_pred(pivot, month), "Базовый прогноз: РТО предыдущего месяца."),
+        Experiment(
+            "baseline_last_month",
+            "baseline_last_month",
+            lambda month: baseline_pred(pivot, month),
+            "Базовый прогноз: РТО предыдущего месяца.",
+        ),
+        Experiment(
+            "ratio_shrink_b0p05_c97_103",
+            "ratio_shrink_model",
+            lambda month: current_best_pred(df, pivot, month),
+            "Текущий лучший подтвержденный ratio_shrink: beta=0.05, clip=(0.97, 1.03).",
+        ),
     ]
 
-    for c in [0.970, 0.975, 0.980, 0.985, 0.990, 0.995, 0.9975, 1.000, 1.0025, 1.005, 1.010, 1.015, 1.020]:
-        suffix = mult_suffix(c)
-        filename = f"test_last_month_mult_{suffix}.csv" if c in {0.995, 0.9975, 1.0025} else ""
+    for c in [0.995, 0.9975, 1.0025, 1.010, 1.015, 1.020]:
+        name = str(c).rstrip("0").rstrip(".").replace(".", "")
         experiments.append(
             Experiment(
-                f"last_month_mult_{suffix}",
+                f"last_month_mult_{name}",
                 "last_month_multiplier",
                 lambda month, c=c: baseline_pred(pivot, month) * c,
-                f"Малый глобальный множитель {c:.4f}.",
-                filename,
+                f"Исторически отправленный глобальный множитель {c}.",
             )
         )
 
-    for threshold in [1.08, 1.10, 1.12, 1.15]:
-        for blend in [0.80, 0.85, 0.90, 0.95]:
+    experiments.extend(
+        [
+            Experiment(
+                "residual_centered_v1",
+                "residual_centered",
+                lambda month: residual_centered_pred(df, pivot, month, 0.01),
+                "Исторически отправленная centered residual поправка.",
+            ),
+            Experiment(
+                "segment_alcohol_s0p05_k500_c97_103",
+                "segment_shrink",
+                lambda month: segment_pred(df, pivot, month, [ALCOHOL_COL], 0.05, 500, (0.97, 1.03)),
+                "Исторически отправленная микропоправка по флагу алкоголя, clip=(0.97, 1.03).",
+            ),
+            Experiment(
+                "segment_alcohol_s0p05_k500_c98_102",
+                "segment_shrink",
+                lambda month: segment_pred(df, pivot, month, [ALCOHOL_COL], 0.05, 500, (0.98, 1.02)),
+                "Исторически отправленная микропоправка по флагу алкоголя, clip=(0.98, 1.02).",
+            ),
+            Experiment(
+                "segment_area_shrink_v1",
+                "segment_shrink",
+                lambda month: segment_pred(df, pivot, month, [AREA_COL], 0.05, 500, (0.97, 1.03)),
+                "Исторически отправленная микропоправка по категории площади.",
+            ),
+            Experiment(
+                "segment_blend_shrink_v1",
+                "segment_blend_shrink",
+                lambda month: segment_blend_pred(df, pivot, month),
+                "Исторически отправленная смесь сегментных микропоправок.",
+            ),
+            Experiment(
+                "segment_region_shrink_v1",
+                "segment_shrink",
+                lambda month: segment_pred(df, pivot, month, [REGION_COL], 0.05, 500, (0.97, 1.03)),
+                "Исторически отправленная микропоправка по региону.",
+            ),
+        ]
+    )
+
+    for beta in [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.10]:
+        for clip_bounds in [(0.995, 1.005), (0.990, 1.010), (0.985, 1.015), (0.980, 1.020), (0.970, 1.030)]:
+            clip_name = f"c{int(clip_bounds[0] * 1000)}_{int(clip_bounds[1] * 1000)}"
+            name = f"ratio_shrink_b{safe_suffix(beta)}_{clip_name}"
+            preferred = {
+                "ratio_shrink_b0p03_c990_1010": "test_ratio_shrink_b0p03_c99_101.csv",
+                "ratio_shrink_b0p04_c970_1030": "test_ratio_shrink_b0p04_c97_103.csv",
+                "ratio_shrink_b0p06_c970_1030": "test_ratio_shrink_b0p06_c97_103.csv",
+                "ratio_shrink_b0p05_c990_1010": "test_ratio_shrink_b0p05_c99_101.csv",
+                "ratio_shrink_b0p07_c980_1020": "test_ratio_shrink_b0p07_c98_102.csv",
+            }.get(name, "")
             experiments.append(
                 Experiment(
-                    f"outlier_rollback_t{safe_suffix(threshold)}_b{safe_suffix(blend)}",
+                    name,
+                    "ratio_shrink_model",
+                    lambda month, beta=beta, clip_bounds=clip_bounds: ratio_shrink_pred(df, pivot, month, beta, clip_bounds),
+                    f"Тонкая настройка ratio_shrink: beta={beta}, clip={clip_bounds}.",
+                    preferred,
+                )
+            )
+
+    experiments.extend(
+        [
+            Experiment(
+                "best_ratio_blend_baseline_90_10",
+                "best_ratio_blend",
+                lambda month: 0.90 * current_best_pred(df, pivot, month) + 0.10 * baseline_pred(pivot, month),
+                "Смесь: 90% current best ratio_shrink + 10% baseline_last_month.",
+                "test_best_ratio_blend_baseline_90_10.csv",
+            ),
+            Experiment(
+                "best_ratio_blend_baseline_95_05",
+                "best_ratio_blend",
+                lambda month: 0.95 * current_best_pred(df, pivot, month) + 0.05 * baseline_pred(pivot, month),
+                "Смесь: 95% current best ratio_shrink + 5% baseline_last_month.",
+                "test_best_ratio_blend_baseline_95_05.csv",
+            ),
+            Experiment(
+                "best_ratio_blend_area_98_02",
+                "best_ratio_blend",
+                lambda month: 0.98 * current_best_pred(df, pivot, month)
+                + 0.02 * segment_pred(df, pivot, month, [AREA_COL], 0.05, 500, (0.97, 1.03)),
+                "Смесь: 98% current best + 2% segment area shrink.",
+                "test_best_ratio_blend_area_98_02.csv",
+            ),
+            Experiment(
+                "best_ratio_blend_segment_98_02",
+                "best_ratio_blend",
+                lambda month: 0.98 * current_best_pred(df, pivot, month) + 0.02 * segment_blend_pred(df, pivot, month),
+                "Смесь: 98% current best + 2% segment blend shrink.",
+                "test_best_ratio_blend_segment_98_02.csv",
+            ),
+            Experiment(
+                "best_ratio_blend_alcohol_99_01",
+                "best_ratio_blend",
+                lambda month: 0.99 * current_best_pred(df, pivot, month)
+                + 0.01 * segment_pred(df, pivot, month, [ALCOHOL_COL], 0.05, 500, (0.97, 1.03)),
+                "Смесь: 99% current best + 1% segment alcohol shrink.",
+            ),
+        ]
+    )
+
+    for threshold in [0.03, 0.05, 0.07, 0.10]:
+        experiments.append(
+            Experiment(
+                f"ratio_gated_stable_t{safe_suffix(threshold)}",
+                "ratio_gated",
+                lambda month, threshold=threshold: gated_ratio_pred(df, pivot, month, "stable", threshold),
+                f"Применять ratio_shrink только для стабильных магазинов: volatility < {threshold}.",
+                "test_ratio_gated_stable_v1.csv" if threshold == 0.05 else "",
+            )
+        )
+        experiments.append(
+            Experiment(
+                f"ratio_gated_unstable_t{safe_suffix(threshold)}",
+                "ratio_gated",
+                lambda month, threshold=threshold: gated_ratio_pred(df, pivot, month, "unstable", threshold),
+                f"Применять ratio_shrink только для нестабильных магазинов: volatility >= {threshold}.",
+            )
+        )
+
+    for threshold in [0.005, 0.010, 0.015, 0.020]:
+        experiments.append(
+            Experiment(
+                f"ratio_gated_smallcorr_t{safe_suffix(threshold)}",
+                "ratio_gated",
+                lambda month, threshold=threshold: gated_ratio_pred(df, pivot, month, "smallcorr", threshold),
+                f"Применять ratio_shrink только если абсолютная ratio-поправка меньше {threshold}.",
+                "test_ratio_gated_smallcorr_v1.csv" if threshold == 0.010 else "",
+            )
+        )
+
+    experiments.append(
+        Experiment(
+            "ratio_gated_direction",
+            "ratio_gated",
+            lambda month: gated_ratio_pred(df, pivot, month, "direction", 0.0),
+            "Применять ratio_shrink только если направление двух последних growth совпадает.",
+        )
+    )
+
+    for threshold in [0.05, 0.08, 0.10, 0.12]:
+        experiments.append(
+            Experiment(
+                f"ratio_gated_outlier_t{safe_suffix(threshold)}",
+                "ratio_gated",
+                lambda month, threshold=threshold: gated_ratio_pred(df, pivot, month, "outlier", threshold),
+                f"Применять ratio_shrink только для октябрьских outlier-магазинов: score > {threshold}.",
+                "test_ratio_gated_outlier_v1.csv" if threshold == 0.08 else "",
+            )
+        )
+
+    for threshold in [1.10, 1.12, 1.15, 1.18]:
+        for blend in [0.90, 0.93, 0.95, 0.97]:
+            name = f"outlier_rollback_t{safe_suffix(threshold)}_b{safe_suffix(blend)}"
+            experiments.append(
+                Experiment(
+                    name,
                     "outlier_rollback",
                     lambda month, threshold=threshold, blend=blend: outlier_smooth_pred(pivot, month, "rollback", threshold - 1.0, blend),
-                    f"Откат только для магазинов, где последний месяц сильно выше среднего трех предыдущих; threshold={threshold}, blend={blend}.",
+                    f"Откат октябрьского выброса: threshold={threshold}, blend={blend}.",
+                    "test_outlier_rollback_t1p15_b0p95.csv" if name == "outlier_rollback_t1p15_b0p95" else "",
                 )
             )
 
-    for threshold in [0.85, 0.88, 0.90, 0.92]:
-        for blend in [0.80, 0.85, 0.90, 0.95]:
+    for threshold in [0.10, 0.12, 0.15]:
+        for blend in [0.93, 0.95, 0.97]:
+            name = f"outlier_smoothing_t{safe_suffix(threshold)}_b{safe_suffix(blend)}"
             experiments.append(
                 Experiment(
-                    f"drop_recovery_t{safe_suffix(threshold)}_b{safe_suffix(blend)}",
-                    "drop_recovery",
-                    lambda month, threshold=threshold, blend=blend: outlier_smooth_pred(pivot, month, "recovery", threshold, blend),
-                    f"Восстановление только для магазинов, где последний месяц сильно ниже среднего трех предыдущих; threshold={threshold}, blend={blend}.",
-                )
-            )
-
-    for threshold in [0.08, 0.10, 0.12, 0.15]:
-        for blend in [0.85, 0.90, 0.95]:
-            experiments.append(
-                Experiment(
-                    f"outlier_smoothing_t{safe_suffix(threshold)}_b{safe_suffix(blend)}",
+                    name,
                     "outlier_smoothing",
                     lambda month, threshold=threshold, blend=blend: outlier_smooth_pred(pivot, month, "symmetric", threshold, blend),
-                    f"Симметричное сглаживание выбросов октября; threshold={threshold}, blend={blend}.",
+                    f"Симметричное сглаживание outlier: threshold={threshold}, blend={blend}.",
+                    "test_outlier_smoothing_t0p12_b0p95.csv" if name == "outlier_smoothing_t0p12_b0p95" else "",
                 )
             )
 
-    group_defs = [
-        ("region", [REGION_COL], "test_segment_region_shrink_v1.csv"),
-        ("area", [AREA_COL], "test_segment_area_shrink_v1.csv"),
-        ("cash", [CASH_COL], ""),
-        ("alcohol", [ALCOHOL_COL], ""),
-        ("open", [OPEN_COL], ""),
-    ]
-    for group_name, group_cols, preferred in group_defs:
-        for shrink in [0.05, 0.10, 0.20, 0.30]:
-            for k in [50, 100, 300, 500]:
-                for clip_bounds in [(0.97, 1.03), (0.98, 1.02)]:
+    for beta_model in [0.03, 0.05, 0.07]:
+        for beta_segment in [0.01, 0.02, 0.03]:
+            for clip_bounds in [(0.99, 1.01), (0.98, 1.02), (0.97, 1.03)]:
+                for segment_kind in ["region", "area", "alcohol", "blend"]:
+                    name = (
+                        f"ratio_segment_prior_m{safe_suffix(beta_model)}_s{safe_suffix(beta_segment)}_"
+                        f"{segment_kind}_c{int(clip_bounds[0] * 100)}_{int(clip_bounds[1] * 100)}"
+                    )
+                    preferred = ""
+                    if beta_model == 0.03 and beta_segment == 0.01 and segment_kind == "blend" and clip_bounds == (0.99, 1.01):
+                        preferred = "test_ratio_segment_prior_v1.csv"
+                    if beta_model == 0.05 and beta_segment == 0.02 and segment_kind == "area" and clip_bounds == (0.98, 1.02):
+                        preferred = "test_ratio_segment_prior_v2.csv"
                     experiments.append(
                         Experiment(
-                            f"segment_{group_name}_s{safe_suffix(shrink)}_k{k}_c{int(clip_bounds[0]*100)}_{int(clip_bounds[1]*100)}",
-                            "segment_shrink",
-                            lambda month, group_cols=group_cols, shrink=shrink, k=k, clip_bounds=clip_bounds: segment_pred(df, pivot, month, group_cols, shrink, k, clip_bounds),
-                            f"Сегментная поправка по {group_name}; shrink={shrink}, k={k}, clip={clip_bounds}.",
+                            name,
+                            "ratio_segment_prior",
+                            lambda month, beta_model=beta_model, beta_segment=beta_segment, segment_kind=segment_kind, clip_bounds=clip_bounds: ratio_segment_prior_pred(
+                                df, pivot, month, beta_model, beta_segment, segment_kind, clip_bounds
+                            ),
+                            f"Ratio shrink с сегментным prior: beta_model={beta_model}, beta_segment={beta_segment}, segment={segment_kind}, clip={clip_bounds}.",
                             preferred,
                         )
                     )
 
-    for shrink in [0.05, 0.10, 0.20, 0.30]:
-        for k in [100, 300, 500]:
-            for clip_bounds in [(0.97, 1.03), (0.98, 1.02)]:
-                experiments.append(
-                    Experiment(
-                        f"segment_blend_s{safe_suffix(shrink)}_k{k}_c{int(clip_bounds[0]*100)}_{int(clip_bounds[1]*100)}",
-                        "segment_blend_shrink",
-                        lambda month, shrink=shrink, k=k, clip_bounds=clip_bounds: segment_blend_pred(df, pivot, month, shrink, k, clip_bounds),
-                        f"Смесь сегментных поправок регион/площадь/кассы; shrink={shrink}, k={k}, clip={clip_bounds}.",
-                        "test_segment_blend_shrink_v1.csv",
-                    )
-                )
-
-    for beta in [0.05, 0.10, 0.15, 0.20]:
-        for clip_bounds in [(0.97, 1.03), (0.98, 1.02), (0.99, 1.01)]:
-            experiments.append(
-                Experiment(
-                    f"ratio_shrink_b{safe_suffix(beta)}_c{int(clip_bounds[0]*100)}_{int(clip_bounds[1]*100)}",
-                    "ratio_shrink_model",
-                    lambda month, beta=beta, clip_bounds=clip_bounds: ratio_shrink_pred(df, pivot, month, beta, clip_bounds),
-                    f"Модель отношения с сильным shrink к 1; beta={beta}, clip={clip_bounds}.",
-                    "test_ratio_shrink_model_v1.csv" if beta == 0.05 and clip_bounds == (0.99, 1.01) else "",
-                )
-            )
-
-    for limit in [0.01, 0.02, 0.03]:
-        experiments.append(
-            Experiment(
-                f"residual_centered_l{safe_suffix(limit)}",
-                "residual_centered",
-                lambda month, limit=limit: residual_centered_pred(df, pivot, month, limit),
-                f"Центрированная относительная поправка по региону с ограничением +/-{limit:.0%}.",
-                "test_residual_centered_v1.csv" if limit == 0.01 else "",
-            )
-        )
-
     return experiments
 
 
-def score_experiment(exp: Experiment, pivot: pd.DataFrame, best_test: pd.Series) -> dict:
+def score_experiment(exp: Experiment, df: pd.DataFrame, pivot: pd.DataFrame, baseline_test: pd.Series, current_best_test: pd.Series) -> dict:
     scores = {}
+    current_scores = {}
+    baseline_scores = {}
     for month in FOLDS:
         pred = exp.pred_func(month).reindex(pivot.index)
         scores[month] = mape_percent(pivot[month], pred)
+        current_scores[month] = mape_percent(pivot[month], current_best_pred(df, pivot, month))
+        baseline_scores[month] = mape_percent(pivot[month], baseline_pred(pivot, month))
 
-    test_pred = exp.pred_func(11).reindex(best_test.index)
-    abs_delta = (test_pred - best_test).abs()
-    rel_delta = ((test_pred - best_test) / best_test).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    test_pred = exp.pred_func(11).reindex(current_best_test.index)
+    abs_delta_baseline = (test_pred - baseline_test).abs()
+    abs_delta_current = (test_pred - current_best_test).abs()
+    rel_delta_current = ((test_pred - current_best_test) / current_best_test).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    abs_rel_current = rel_delta_current.abs()
+
     return {
         "experiment_name": exp.experiment_name,
         "model_name": exp.model_name,
@@ -270,66 +527,68 @@ def score_experiment(exp: Experiment, pivot: pd.DataFrame, best_test: pd.Series)
         "mean_mape": float(np.mean(list(scores.values()))),
         "weighted_mape_235": scores[8] * 0.2 + scores[9] * 0.3 + scores[10] * 0.5,
         "weighted_mape_127": scores[8] * 0.1 + scores[9] * 0.2 + scores[10] * 0.7,
+        "current_best_fold10_mape": current_scores[10],
+        "baseline_fold10_mape": baseline_scores[10],
+        "delta_vs_baseline_last_month_fold10": scores[10] - baseline_scores[10],
+        "delta_vs_current_best_fold10": scores[10] - current_scores[10],
+        "mean_abs_delta_vs_baseline_last_month": float(abs_delta_baseline.mean()),
+        "mean_abs_delta_vs_current_best": float(abs_delta_current.mean()),
+        "mean_rel_delta_vs_current_best": float(rel_delta_current.mean()),
+        "mean_abs_relative_delta_vs_current_best": float(abs_rel_current.mean()),
+        "max_rel_delta_vs_current_best": float(abs_rel_current.max()),
+        "share_abs_delta_vs_current_best_gt_0p1pct": float((abs_rel_current > 0.001).mean()),
+        "share_abs_delta_vs_current_best_gt_0p3pct": float((abs_rel_current > 0.003).mean()),
+        "share_abs_delta_vs_current_best_gt_1pct": float((abs_rel_current > 0.010).mean()),
         "generated_submission": "",
-        "mean_abs_delta_vs_baseline": float(abs_delta.mean()),
-        "mean_rel_delta_vs_baseline": float(rel_delta.mean()),
-        "mean_abs_relative_delta_vs_baseline": float(rel_delta.abs().mean()),
-        "max_rel_delta_vs_baseline": float(rel_delta.abs().max()),
-        "share_abs_delta_gt_1pct": float((rel_delta.abs() > 0.01).mean()),
-        "share_abs_delta_gt_2pct": float((rel_delta.abs() > 0.02).mean()),
-        "share_abs_delta_gt_3pct": float((rel_delta.abs() > 0.03).mean()),
-        "share_abs_delta_gt_5pct": float((rel_delta.abs() > 0.05).mean()),
         "comment": exp.comment,
     }
 
 
 def enrich_with_leaderboard(results: pd.DataFrame) -> pd.DataFrame:
-    lb = load_leaderboard()
-    latest = lb.dropna(subset=["filename"]).copy()
-    latest["filename"] = latest["filename"].astype(str).str.replace("\\", "/", regex=False)
-    model_map = {
-        "baseline_last_month": "baseline_last_month",
-        "last_month_mult_101": "last_month_mult_101",
-        "last_month_mult_1015": "last_month_mult_1015",
-        "last_month_mult_102": "last_month_mult_102",
-        "ensemble_conservative_v1": "ensemble_conservative_v1",
-        "ensemble_conservative_v2": "ensemble_conservative_v2",
-    }
-    for col in ["lb_score", "lb_mape", "verdict"]:
-        if col not in latest:
-            latest[col] = np.nan
+    lb = load_leaderboard().copy()
+    lb["filename"] = lb["filename"].astype(str).str.replace("\\", "/", regex=False)
+    lb["lb_score"] = pd.to_numeric(lb["lb_score"], errors="coerce")
+    lb["lb_mape"] = pd.to_numeric(lb["lb_mape"], errors="coerce")
 
     results["lb_score"] = np.nan
     results["lb_mape"] = np.nan
     results["lb_verdict"] = ""
-    for lb_model, exp_name in model_map.items():
-        rows = latest[latest["model_name"].astype(str) == lb_model]
-        if len(rows):
-            row = rows.iloc[-1]
-            idx = results["experiment_name"] == exp_name
-            results.loc[idx, "lb_score"] = pd.to_numeric(row["lb_score"], errors="coerce")
-            results.loc[idx, "lb_mape"] = pd.to_numeric(row["lb_mape"], errors="coerce")
-            results.loc[idx, "lb_verdict"] = row["verdict"]
-    best_score = 95.86
+    for idx, row in results.iterrows():
+        exp_name = row["experiment_name"]
+        aliases = {
+            "ratio_shrink_b0p05_c970_1030": "ratio_shrink_b0p05_c97_103",
+        }
+        model_names = {exp_name, aliases.get(exp_name, exp_name)}
+        if exp_name == "baseline_last_month":
+            model_names.add("baseline_last_month")
+        match = lb[lb["model_name"].astype(str).isin(model_names)]
+        if len(match):
+            latest = match.iloc[-1]
+            results.loc[idx, "lb_score"] = latest["lb_score"]
+            results.loc[idx, "lb_mape"] = latest["lb_mape"]
+            results.loc[idx, "lb_verdict"] = latest["verdict"]
+    best_score = 95.87
     results["delta_lb_vs_best"] = pd.to_numeric(results["lb_score"], errors="coerce") - best_score
     return results
 
 
 def add_risk_score(results: pd.DataFrame) -> pd.DataFrame:
-    baseline = results.loc[results["experiment_name"] == "baseline_last_month"].iloc[0]
-    positive_multiplier_penalty = np.where(
-        (results["model_name"] == "last_month_multiplier") & (results["mean_rel_delta_vs_baseline"] > 0),
-        0.25 + 20.0 * results["mean_rel_delta_vs_baseline"],
+    current_best = results.loc[results["experiment_name"] == "ratio_shrink_b0p05_c970_1030"]
+    if len(current_best) == 0:
+        current_best = results.loc[results["experiment_name"] == "ratio_shrink_b0p05_c97_103"]
+    current_best_fold10 = float(current_best.iloc[0]["fold10_mape"])
+
+    aggressive_global_penalty = np.where(
+        (results["model_name"] == "last_month_multiplier") & (results["mean_rel_delta_vs_current_best"].abs() > 0.002),
+        0.25 + 20.0 * results["mean_rel_delta_vs_current_best"].abs(),
         0.0,
     )
-    results["delta_vs_baseline_fold10"] = results["fold10_mape"] - baseline["fold10_mape"]
-    results["delta_vs_baseline_weighted_127"] = results["weighted_mape_127"] - baseline["weighted_mape_127"]
     results["risk_score"] = (
         results["weighted_mape_127"]
-        + 0.5 * results["delta_vs_baseline_fold10"].clip(lower=0.0)
-        + 10.0 * results["mean_abs_relative_delta_vs_baseline"]
-        + 5.0 * results["share_abs_delta_gt_3pct"]
-        + positive_multiplier_penalty
+        + 0.5 * (results["fold10_mape"] - current_best_fold10).clip(lower=0.0)
+        + 20.0 * results["mean_abs_relative_delta_vs_current_best"]
+        + 10.0 * results["share_abs_delta_vs_current_best_gt_0p3pct"]
+        + aggressive_global_penalty
     )
     return results
 
@@ -341,83 +600,81 @@ def filename_for(exp: Experiment, used: set[str]) -> str:
 
 
 def choose_candidates(results: pd.DataFrame) -> list[str]:
-    sent = set(results.loc[results["lb_verdict"].astype(str) != "", "experiment_name"])
+    already_sent = set(results.loc[results["lb_verdict"].astype(str) != "", "experiment_name"])
     pool = results[
         (results["experiment_name"] != "baseline_last_month")
-        & (~results["experiment_name"].isin(sent))
-        & (results["max_rel_delta_vs_baseline"] <= 0.03)
-        & (results["share_abs_delta_gt_5pct"] == 0)
+        & (~results["experiment_name"].isin(already_sent))
+        & (results["max_rel_delta_vs_current_best"] <= 0.006)
+        & (results["share_abs_delta_vs_current_best_gt_1pct"] == 0)
+        & (results["mean_abs_relative_delta_vs_current_best"] > 1e-7)
     ].copy()
 
-    selected = []
-    for name in ["last_month_mult_09975", "last_month_mult_0995", "last_month_mult_10025"]:
-        if name in set(pool["experiment_name"]):
-            selected.append(name)
+    priority = [
+        "ratio_shrink_b0p03_c990_1010",
+        "ratio_shrink_b0p04_c970_1030",
+        "ratio_shrink_b0p06_c970_1030",
+        "ratio_shrink_b0p05_c990_1010",
+        "ratio_shrink_b0p07_c980_1020",
+        "best_ratio_blend_baseline_95_05",
+        "best_ratio_blend_area_98_02",
+        "ratio_gated_smallcorr_t0p01",
+        "ratio_gated_stable_t0p05",
+        "outlier_rollback_t1p15_b0p95",
+        "outlier_smoothing_t0p12_b0p95",
+        "ratio_segment_prior_m0p03_s0p01_blend_c99_101",
+        "ratio_segment_prior_m0p05_s0p02_area_c98_102",
+    ]
 
-    for prefix, limit in [
-        ("outlier_rollback", 1),
-        ("drop_recovery", 1),
-        ("outlier_smoothing", 1),
-        ("ratio_shrink_model", 1),
-        ("residual_centered", 1),
-    ]:
-        part = pool[pool["model_name"] == prefix].sort_values(["risk_score", "max_rel_delta_vs_baseline"])
-        selected.extend(part.head(limit)["experiment_name"].tolist())
-
-    for prefix in ["segment_region_", "segment_area_", "segment_blend_"]:
-        part = pool[pool["experiment_name"].str.startswith(prefix)].sort_values(["risk_score", "max_rel_delta_vs_baseline"])
-        selected.extend(part.head(1)["experiment_name"].tolist())
-
-    return list(dict.fromkeys(selected))[:10]
+    selected = [name for name in priority if name in set(pool["experiment_name"])]
+    for model_name in ["ratio_shrink_model", "best_ratio_blend", "ratio_gated", "outlier_rollback", "outlier_smoothing", "ratio_segment_prior"]:
+        part = pool[pool["model_name"] == model_name].sort_values(["risk_score", "max_rel_delta_vs_current_best"])
+        selected.extend(part.head(2)["experiment_name"].tolist())
+    return list(dict.fromkeys(selected))[:8]
 
 
-def write_reports(results: pd.DataFrame, generated: pd.DataFrame, ce_note: str) -> None:
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+def write_reports(results: pd.DataFrame, generated: pd.DataFrame, embedding_note: str) -> None:
     best = load_best_submission()
     lb = load_leaderboard()
-    top = results.sort_values("risk_score").head(15)
+    top = results.sort_values("risk_score").head(20)
+    rec = generated.sort_values("risk_score") if len(generated) else generated
 
     experiments_md = [
         "# Отчет по экспериментам",
         "",
         "## Краткий вывод",
         "",
-        "Leaderboard подтвердил, что `baseline_last_month` остается лучшим или делит первое место. Простое увеличение прогноза ухудшило результат: множитель 1.010 дал score 95.73, множитель 1.020 дал score 95.40. Консервативные ансамбли v1/v2 дали тот же score 95.86, то есть не улучшили baseline.",
+        "Новый лучший подтвержденный сабмит: `submissions/test_ratio_shrink_b0p05_c97_103.csv`, score `95.87`, LB MAPE `4.13`. Улучшение относительно `baseline_last_month` всего `+0.01`, поэтому дальнейший поиск должен быть очень осторожным.",
         "",
-        "Следовательно, скрытый ноябрь очень близок к октябрю. Новые кандидаты должны быть микрокоррекциями вокруг `РТО_10`, а не самостоятельными агрессивными моделями.",
+        "Глобальные множители ухудшают качество: `0.995` дал 95.85, `0.9975` дал 95.86, `1.0025` дал 95.85, `1.010` дал 95.73, `1.020` дал 95.40. Это говорит, что простое смещение всех прогнозов не работает.",
         "",
-        "## Расследование CE для test_last_month_mult_1015.csv",
+        "`ratio_shrink` стал основной линией, потому что он почти не отходит от `baseline_last_month`, но дает слабую индивидуальную поправку и единственный подтвердил улучшение до 95.87.",
         "",
-        ce_note,
+        "`residual_centered_v1` развивать агрессивно не стоит: score 95.79 заметно хуже. Сегментные поправки по region/area/blend/alcohol дали 95.86: они безопасны как микросигнал, но сами по себе не улучшают.",
         "",
-        "## Калибровка локальной валидации по leaderboard",
+        "## Согласование локальной валидации с leaderboard",
         "",
-        "Локальная валидация переоценила положительные множители: `last_month_mult_102` выглядел хорошо по fold10 и weighted 0.1/0.2/0.7, но на LB оказался заметно хуже baseline. Поэтому теперь локальные метрики используются как фильтр риска, а не как прямой прогноз leaderboard.",
+        "Локальная валидация недостаточно хорошо предсказывает LB для глобальных множителей: положительные множители выглядели неплохо на fold10, но ухудшили leaderboard. Поэтому главный критерий теперь: близость к current best + микроскопическое локальное улучшение + отсутствие деградации на fold10.",
         "",
-        "Основные локальные сигналы после калибровки:",
-        "",
-        "- fold10 важен, но сам по себе недостаточен;",
-        "- weighted_mape_127 полезен как recency-weighted фильтр, но он ошибся на положительных множителях;",
-        "- отклонение от `baseline_last_month` нужно явно штрафовать;",
-        "- кандидаты с большим числом магазинов, измененных более чем на 3%, считаются рискованными;",
-        "- положительные глобальные множители теперь считаются более рискованными, потому что LB уже показал ухудшение.",
-        "",
-        "Формула `risk_score`:",
+        "Новая формула риска:",
         "",
         "```text",
         "risk_score = weighted_mape_127",
-        "             + 0.5 * max(0, fold10_mape - baseline_fold10_mape)",
-        "             + 10 * mean_abs_relative_delta_vs_baseline",
-        "             + 5 * share_abs_delta_gt_3pct",
-        "             + penalty_for_positive_global_multiplier",
+        "             + 0.5 * max(0, fold10_mape - current_best_fold10_mape)",
+        "             + 20 * mean_abs_relative_delta_vs_current_best",
+        "             + 10 * share_abs_delta_vs_current_best_gt_0p3pct",
+        "             + penalty_for_aggressive_global_shift",
         "```",
         "",
-        "Чем меньше `risk_score`, тем безопаснее кандидат. Эта метрика намеренно штрафует даже локально перспективные варианты, если они слишком далеко уходят от октябрьского baseline.",
+        "Эта метрика специально штрафует даже локально неплохие варианты, если они слишком далеко уходят от подтвержденного current best.",
+        "",
+        "## Категориальные признаки / embeddings",
+        "",
+        embedding_note,
         "",
         "## Leaderboard-результаты",
         "",
         "```text",
-        lb.to_string(index=False),
+        lb[["filename", "model_name", "lb_score", "lb_mape", "verdict", "comment"]].to_string(index=False),
         "```",
         "",
         "## Топ экспериментов по risk_score",
@@ -430,30 +687,20 @@ def write_reports(results: pd.DataFrame, generated: pd.DataFrame, ce_note: str) 
             "weighted_mape_127",
             "risk_score",
             "generated_submission",
-            "max_rel_delta_vs_baseline",
-            "share_abs_delta_gt_3pct",
+            "mean_abs_relative_delta_vs_current_best",
+            "max_rel_delta_vs_current_best",
+            "share_abs_delta_vs_current_best_gt_0p3pct",
             "lb_score",
             "lb_verdict",
         ]].to_string(index=False),
         "```",
-        "",
-        "## NLP / embeddings",
-        "",
-        "В данных есть категориальные признаки (`Регион`, `Населенный пункт`, категории даты открытия и площади), но нет свободного текста. Поэтому классический NLP или Word2Vec здесь выглядит избыточным. Более уместны frequency/target/segment encodings, которые частично проверяются через сегментные shrinkage-поправки. Отдельный NLP-сабмит не генерировался.",
     ]
     (REPORTS_DIR / "experiments.md").write_text("\n".join(experiments_md) + "\n", encoding="utf-8")
 
-    rec = generated.sort_values("risk_score").copy()
     recommended_md = [
         "# Рекомендованные сабмиты",
         "",
         f"Текущий лучший подтвержденный сабмит: `{best['filename']}`, score `{best['lb_score']:.2f}`, LB MAPE `{best['lb_mape']:.2f}`.",
-        "",
-        "## Что уже отправлялось",
-        "",
-        "```text",
-        lb.to_string(index=False),
-        "```",
         "",
         "## Новые кандидаты",
         "",
@@ -466,22 +713,17 @@ def write_reports(results: pd.DataFrame, generated: pd.DataFrame, ce_note: str) 
                 "model_name",
                 "weighted_mape_127",
                 "risk_score",
-                "mean_abs_relative_delta_vs_baseline",
-                "max_rel_delta_vs_baseline",
-                "share_abs_delta_gt_3pct",
+                "mean_abs_relative_delta_vs_current_best",
+                "max_rel_delta_vs_current_best",
+                "share_abs_delta_vs_current_best_gt_0p3pct",
             ]].to_string(index=False)
         )
         recommended_md.append("```")
     else:
-        recommended_md.append("Новые кандидаты не созданы: ни один вариант не прошел фильтр безопасности.")
+        recommended_md.append("Новые кандидаты не созданы: все варианты отфильтрованы как рискованные.")
 
     recommended_md.extend(
         [
-            "",
-            "## Что не стоит отправлять",
-            "",
-            "- Уже проверенные положительные множители 1.010, 1.015, 1.020: LB показал ухудшение или CE.",
-            "- Агрессивные сегментные и ratio/residual модели, если они меняют много магазинов больше чем на 3%.",
             "",
             "## Что отправлять дальше",
             "",
@@ -491,12 +733,14 @@ def write_reports(results: pd.DataFrame, generated: pd.DataFrame, ce_note: str) 
         recommended_md.append(f"{i}. `{row['generated_submission']}`")
         recommended_md.append(f"   - идея: {row['comment']}")
         recommended_md.append(
-            f"   - среднее абсолютное относительное отличие от baseline: {row['mean_abs_relative_delta_vs_baseline']:.6f}; "
-            f"максимальное: {row['max_rel_delta_vs_baseline']:.6f}; risk_score: {row['risk_score']:.6f}"
+            f"   - среднее абсолютное относительное отличие от current best: {row['mean_abs_relative_delta_vs_current_best']:.6f}; "
+            f"максимальное: {row['max_rel_delta_vs_current_best']:.6f}; risk_score: {row['risk_score']:.6f}"
         )
-        recommended_md.append("   - риск приемлемый, потому что кандидат остается очень близко к `baseline_last_month`.")
+        recommended_md.append("   - риск приемлемый: кандидат остается очень близко к подтвержденному ratio_shrink.")
     recommended_md.extend(
         [
+            "",
+            "Не стоит повторно отправлять глобальные множители `1.010`, `1.020` и `residual_centered_v1`: leaderboard уже показал ухудшение.",
             "",
             "После каждого результата LB нужно записать его в реестр:",
             "",
@@ -514,70 +758,46 @@ def write_reports(results: pd.DataFrame, generated: pd.DataFrame, ce_note: str) 
     (REPORTS_DIR / "recommended_submissions.md").write_text("\n".join(recommended_md) + "\n", encoding="utf-8")
 
 
-def ce_investigation_note() -> str:
-    path = SUBMISSIONS_DIR / "test_last_month_mult_1015.csv"
-    if not path.exists():
-        return "Файл `submissions/test_last_month_mult_1015.csv` локально не найден."
-    raw = path.read_bytes()
-    df = pd.read_csv(path)
-    first_line = path.open("r", encoding="utf-8", newline="").readline().rstrip("\r\n")
-    bom = raw.startswith(b"\xef\xbb\xbf")
-    nul_count = raw.count(b"\x00")
-    crlf_count = raw.count(b"\r\n")
-    lf_count = raw.count(b"\n")
-    cr_only_count = raw.count(b"\r") - crlf_count
-    checks = [
-        f"Файл существует: да.",
-        f"Размер файла: {path.stat().st_size} байт.",
-        f"Первая строка: `{first_line}`.",
-        f"Shape через `pd.read_csv`: {tuple(df.shape)}.",
-        f"Колонки: {list(df.columns)}.",
-        f"NaN: {int(df.isna().sum().sum())}.",
-        f"Отрицательные `rto`: {int((df['rto'] < 0).sum())}.",
-        f"Дубликаты `new_id`: {int(df['new_id'].duplicated().sum())}.",
-        f"BOM: {'есть' if bom else 'нет'}.",
-        f"NUL-байты: {nul_count}.",
-        f"CRLF строк: {crlf_count}, LF строк: {lf_count}, одиночных CR: {cr_only_count}.",
-    ]
-    checks.append("Локальная проверка формата не выявила проблемы; вероятно, в Контест был отправлен не тот файл или произошла ошибка загрузки.")
-    return "\n".join(f"- {line}" for line in checks)
-
-
 def main() -> None:
     df = load_train(TRAIN_PATH)
     pivot = df.pivot(index=ID_COL, columns=MONTH_COL, values=TARGET_COL).sort_index()
-    best_test = pivot[10].copy()
+    baseline_test = baseline_pred(pivot, 11)
+    current_best_test = current_best_pred(df, pivot, 11)
+
     SUBMISSIONS_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Восстанавливаем файл, который уже был отправлен, если его нет локально.
+    alcohol_c97 = SUBMISSIONS_DIR / "test_segment_alcohol_s0p05_k500_c97_103.csv"
+    if not alcohol_c97.exists():
+        pred = segment_pred(df, pivot, 11, [ALCOHOL_COL], 0.05, 500, (0.97, 1.03))
+        save_submission(submission_frame(pred), alcohol_c97)
+
     experiments = build_experiments(df, pivot)
     exp_by_name = {exp.experiment_name: exp for exp in experiments}
-    results = pd.DataFrame([score_experiment(exp, pivot, best_test) for exp in experiments])
-    results = enrich_with_leaderboard(results)
-    results = add_risk_score(results)
+    results = pd.DataFrame([score_experiment(exp, df, pivot, baseline_test, current_best_test) for exp in experiments])
+    results = add_risk_score(enrich_with_leaderboard(results))
 
     selected = choose_candidates(results)
-    used_filenames: set[str] = set()
     generated_rows = []
+    used_filenames: set[str] = set()
     for name in selected:
         exp = exp_by_name[name]
-        row = results[results["experiment_name"] == name].iloc[0].copy()
+        row = results.loc[results["experiment_name"] == name].iloc[0].copy()
         filename = filename_for(exp, used_filenames)
         used_filenames.add(filename)
         path = SUBMISSIONS_DIR / filename
-        pred = exp.pred_func(11).reindex(best_test.index)
-        save_submission(submission_frame(pred), path)
+        save_submission(submission_frame(exp.pred_func(11).reindex(current_best_test.index)), path)
         rel_path = str(path.relative_to(ROOT)).replace("\\", "/")
         results.loc[results["experiment_name"] == name, "generated_submission"] = rel_path
         row["generated_submission"] = rel_path
         generated_rows.append(row.to_dict())
 
-    results = enrich_with_leaderboard(results)
-    results = add_risk_score(results)
+    results = add_risk_score(enrich_with_leaderboard(results))
     results.sort_values("risk_score").to_csv(REPORTS_DIR / "experiment_results.csv", index=False, encoding="utf-8")
 
     generated = pd.DataFrame(generated_rows)
-    write_reports(results.sort_values("risk_score"), generated, ce_investigation_note())
+    write_reports(results.sort_values("risk_score"), generated, categorical_svd_probe(df))
 
     registry = load_leaderboard().copy()
     registry_rows = []

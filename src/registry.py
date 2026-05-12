@@ -68,10 +68,10 @@ KNOWN_LEADERBOARD_ROWS = [
 ]
 
 KNOWN_BEST = {
-    "filename": "submissions/test_baseline_last_month.csv",
-    "model_name": "baseline_last_month",
-    "lb_score": 95.86,
-    "lb_mape": 4.14,
+    "filename": "submissions/test_ratio_shrink_b0p05_c97_103.csv",
+    "model_name": "ratio_shrink_b0p05_c97_103",
+    "lb_score": 95.87,
+    "lb_mape": 4.13,
     "verdict": "OK",
     "is_confirmed_by_leaderboard": True,
 }

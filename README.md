@@ -164,7 +164,7 @@ reports/best_submission.json
 Записать новый результат:
 
 ```bash
-python scripts/record_leaderboard_result.py --file submissions/test_candidate.csv --model candidate_name --lb-score 95.90 --verdict OK --comment "short note"
+python scripts/record_leaderboard_result.py --file submissions/test_candidate.csv --model candidate_name --lb-score 95.90 --verdict OK --comment "краткий комментарий"
 ```
 
 Если `verdict == OK` и score лучше текущего best-known, `reports/best_submission.json` обновится автоматически. `test.csv` при записи результата не трогается.
@@ -216,17 +216,24 @@ python scripts/run_experiments.py
 ## Текущий Лучший Подтверждённый Результат
 
 ```text
-submissions/test_baseline_last_month.csv
-score = 95.86
-LB MAPE = 4.14
+submissions/test_ratio_shrink_b0p05_c97_103.csv
+score = 95.87
+LB MAPE = 4.13
 ```
 
 Уже проверенные выводы leaderboard:
 
+- `submissions/test_ratio_shrink_b0p05_c97_103.csv` стал новым лучшим подтвержденным сабмитом: score `95.87`.
+- `submissions/test_baseline_last_month.csv` остается очень сильным baseline: score `95.86`.
 - `submissions/test_ensemble_conservative_v1.csv` и `submissions/test_ensemble_conservative_v2.csv` повторили score `95.86`, но не улучшили baseline.
+- `submissions/test_last_month_mult_0995.csv` получил score `95.85`.
+- `submissions/test_last_month_mult_09975.csv` получил score `95.86`.
+- `submissions/test_last_month_mult_10025.csv` получил score `95.85`.
 - `submissions/test_last_month_mult_101.csv` получил score `95.73`, то есть множитель `1.010` хуже baseline.
 - `submissions/test_last_month_mult_102.csv` получил score `95.40`, то есть множитель `1.020` заметно хуже baseline.
 - `submissions/test_last_month_mult_1015.csv` получил CE; локальная проверка формата не выявила проблему.
+- `submissions/test_residual_centered_v1.csv` получил score `95.79`, поэтому residual-поправку пока не стоит развивать агрессивно.
+- Сегментные микропоправки по region/area/blend/alcohol дали `95.86`: они безопасны как слабый сигнал, но сами по себе не улучшили best.
 
 Для восстановления:
 

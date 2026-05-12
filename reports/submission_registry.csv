@@ -8,11 +8,21 @@ submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
 ,submissions/test_last_month_mult_101.csv,last_month_mult_101,,95.73,4.27,OK,"множитель 1.010, хуже текущего лучшего"
 ,submissions/test_last_month_mult_102.csv,last_month_mult_102,,95.4,4.6,OK,"множитель 1.020, хуже текущего лучшего"
 ,submissions/test_last_month_mult_1015.csv,last_month_mult_1015,,0.0,100.0,CE,CE в Контесте; локальный формат проверен отдельно
-,submissions/test_last_month_mult_09975.csv,last_month_multiplier,6.838395016079216,,,,Малый глобальный множитель 0.9975.
-,submissions/test_last_month_mult_0995.csv,last_month_multiplier,6.900025280853404,,,,Малый глобальный множитель 0.9950.
-,submissions/test_last_month_mult_10025.csv,last_month_multiplier,6.731614244363499,,,,Малый глобальный множитель 1.0025.
-,submissions/test_ratio_shrink_b0p05_c97_103.csv,ratio_shrink_model,6.778170001937117,,,,"Модель отношения с сильным shrink к 1; beta=0.05, clip=(0.97, 1.03)."
-,submissions/test_residual_centered_v1.csv,residual_centered,6.909652925124718,,,,Центрированная относительная поправка по региону с ограничением +/-1%.
-,submissions/test_segment_region_shrink_v1.csv,segment_shrink,6.78941441037845,,,,"Сегментная поправка по region; shrink=0.05, k=500, clip=(0.97, 1.03)."
-,submissions/test_segment_area_shrink_v1.csv,segment_shrink,6.783316208012288,,,,"Сегментная поправка по area; shrink=0.05, k=500, clip=(0.97, 1.03)."
-,submissions/test_segment_blend_shrink_v1.csv,segment_blend_shrink,6.786278854563242,,,,"Смесь сегментных поправок регион/площадь/кассы; shrink=0.05, k=500, clip=(0.97, 1.03)."
+2026-05-12T17:18:29+00:00,submissions/test_last_month_mult_0995.csv,last_month_mult_0995,,95.85,4.150000000000006,OK,"множитель 0.995, немного хуже текущего лучшего"
+2026-05-12T17:18:37+00:00,submissions/test_last_month_mult_09975.csv,last_month_mult_09975,,95.86,4.140000000000001,OK,"множитель 0.9975, на уровне baseline"
+2026-05-12T17:18:41+00:00,submissions/test_last_month_mult_10025.csv,last_month_mult_10025,,95.85,4.150000000000006,OK,"множитель 1.0025, немного хуже текущего лучшего"
+2026-05-12T17:18:53+00:00,submissions/test_ratio_shrink_b0p05_c97_103.csv,ratio_shrink_b0p05_c97_103,,95.87,4.129999999999996,OK,новый лучший подтвержденный ratio_shrink
+2026-05-12T17:19:08+00:00,submissions/test_residual_centered_v1.csv,residual_centered_v1,,95.79,4.209999999999994,OK,centered residual хуже текущего лучшего
+2026-05-12T17:19:13+00:00,submissions/test_segment_alcohol_s0p05_k500_c98_102.csv,segment_alcohol_s0p05_k500_c98_102,,95.86,4.140000000000001,OK,"сегментная микропоправка alcohol, на уровне baseline"
+2026-05-12T17:19:18+00:00,submissions/test_segment_area_shrink_v1.csv,segment_area_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка area, на уровне baseline"
+2026-05-12T17:19:23+00:00,submissions/test_segment_blend_shrink_v1.csv,segment_blend_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка blend, на уровне baseline"
+2026-05-12T17:19:28+00:00,submissions/test_segment_region_shrink_v1.csv,segment_region_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка region, на уровне baseline"
+2026-05-12T17:38:37+00:00,submissions/test_segment_alcohol_s0p05_k500_c97_103.csv,segment_alcohol_s0p05_k500_c97_103,,95.86,4.140000000000001,OK,"сегментная микропоправка alcohol, на уровне baseline"
+,submissions/test_ratio_shrink_b0p03_c99_101.csv,ratio_shrink_model,6.779713258235292,,,,"Тонкая настройка ratio_shrink: beta=0.03, clip=(0.99, 1.01)."
+,submissions/test_ratio_shrink_b0p04_c97_103.csv,ratio_shrink_model,6.778934606099019,,,,"Тонкая настройка ratio_shrink: beta=0.04, clip=(0.97, 1.03)."
+,submissions/test_ratio_shrink_b0p06_c97_103.csv,ratio_shrink_model,6.777417927919645,,,,"Тонкая настройка ratio_shrink: beta=0.06, clip=(0.97, 1.03)."
+,submissions/test_ratio_shrink_b0p07_c98_102.csv,ratio_shrink_model,6.77667262638928,,,,"Тонкая настройка ratio_shrink: beta=0.07, clip=(0.98, 1.02)."
+,submissions/test_best_ratio_blend_baseline_95_05.csv,best_ratio_blend,6.778359624755086,,,,Смесь: 95% current best ratio_shrink + 5% baseline_last_month.
+,submissions/test_best_ratio_blend_area_98_02.csv,best_ratio_blend,6.778269374793958,,,,Смесь: 98% current best + 2% segment area shrink.
+,submissions/test_ratio_gated_stable_v1.csv,ratio_gated,6.78327118598958,,,,Применять ratio_shrink только для стабильных магазинов: volatility < 0.05.
+,submissions/test_ratio_segment_prior_v1.csv,ratio_segment_prior,6.779750143869419,,,,"Ratio shrink с сегментным prior: beta_model=0.03, beta_segment=0.01, segment=blend, clip=(0.99, 1.01)."

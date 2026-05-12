@@ -8,12 +8,13 @@ submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
 ,submissions/test_last_month_mult_101.csv,last_month_mult_101,,95.73,4.27,OK,"множитель 1.010, хуже текущего лучшего"
 ,submissions/test_last_month_mult_102.csv,last_month_mult_102,,95.4,4.6,OK,"множитель 1.020, хуже текущего лучшего"
 ,submissions/test_last_month_mult_1015.csv,last_month_mult_1015,,0.0,100.0,CE,CE в Контесте; локальный формат проверен отдельно
-2026-05-12T17:18:29+00:00,submissions/test_last_month_mult_0995.csv,last_month_mult_0995,,95.85,4.150000000000006,OK,"LB: multiplier 0.995, slightly worse than baseline_last_month"
-2026-05-12T17:18:37+00:00,submissions/test_last_month_mult_09975.csv,last_month_mult_09975,,95.86,4.140000000000001,OK,"LB: multiplier 0.9975, tied with baseline_last_month"
-2026-05-12T17:18:41+00:00,submissions/test_last_month_mult_10025.csv,last_month_mult_10025,,95.85,4.150000000000006,OK,"LB: multiplier 1.0025, slightly worse than baseline_last_month"
-2026-05-12T17:18:53+00:00,submissions/test_ratio_shrink_b0p05_c97_103.csv,ratio_shrink_b0p05_c97_103,,95.87,4.129999999999996,OK,"LB: new best, ratio model with strong shrink to 1"
-2026-05-12T17:19:08+00:00,submissions/test_residual_centered_v1.csv,residual_centered_v1,,95.79,4.209999999999994,OK,"LB: centered residual correction, worse than baseline"
-2026-05-12T17:19:13+00:00,submissions/test_segment_alcohol_s0p05_k500_c98_102.csv,segment_alcohol_s0p05_k500_c98_102,,95.86,4.140000000000001,OK,"LB: alcohol segment shrink, tied with baseline"
-2026-05-12T17:19:18+00:00,submissions/test_segment_area_shrink_v1.csv,segment_area_shrink_v1,,95.86,4.140000000000001,OK,"LB: area segment shrink, tied with baseline"
-2026-05-12T17:19:23+00:00,submissions/test_segment_blend_shrink_v1.csv,segment_blend_shrink_v1,,95.86,4.140000000000001,OK,"LB: blended segment shrink, tied with baseline"
-2026-05-12T17:19:28+00:00,submissions/test_segment_region_shrink_v1.csv,segment_region_shrink_v1,,95.86,4.140000000000001,OK,"LB: region segment shrink, tied with baseline"
+2026-05-12T17:18:29+00:00,submissions/test_last_month_mult_0995.csv,last_month_mult_0995,,95.85,4.150000000000006,OK,"множитель 0.995, немного хуже текущего лучшего"
+2026-05-12T17:18:37+00:00,submissions/test_last_month_mult_09975.csv,last_month_mult_09975,,95.86,4.140000000000001,OK,"множитель 0.9975, на уровне baseline"
+2026-05-12T17:18:41+00:00,submissions/test_last_month_mult_10025.csv,last_month_mult_10025,,95.85,4.150000000000006,OK,"множитель 1.0025, немного хуже текущего лучшего"
+2026-05-12T17:18:53+00:00,submissions/test_ratio_shrink_b0p05_c97_103.csv,ratio_shrink_b0p05_c97_103,,95.87,4.129999999999996,OK,новый лучший подтвержденный ratio_shrink
+2026-05-12T17:19:08+00:00,submissions/test_residual_centered_v1.csv,residual_centered_v1,,95.79,4.209999999999994,OK,centered residual хуже текущего лучшего
+2026-05-12T17:19:13+00:00,submissions/test_segment_alcohol_s0p05_k500_c98_102.csv,segment_alcohol_s0p05_k500_c98_102,,95.86,4.140000000000001,OK,"сегментная микропоправка alcohol, на уровне baseline"
+2026-05-12T17:19:18+00:00,submissions/test_segment_area_shrink_v1.csv,segment_area_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка area, на уровне baseline"
+2026-05-12T17:19:23+00:00,submissions/test_segment_blend_shrink_v1.csv,segment_blend_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка blend, на уровне baseline"
+2026-05-12T17:19:28+00:00,submissions/test_segment_region_shrink_v1.csv,segment_region_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка region, на уровне baseline"
+2026-05-12T17:38:37+00:00,submissions/test_segment_alcohol_s0p05_k500_c97_103.csv,segment_alcohol_s0p05_k500_c97_103,,95.86,4.140000000000001,OK,"сегментная микропоправка alcohol, на уровне baseline"
