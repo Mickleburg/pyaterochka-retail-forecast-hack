@@ -1,0 +1,8 @@
+{
+  "filename": "submissions/test_baseline_last_month.csv",
+  "model_name": "baseline_last_month",
+  "lb_score": 95.86,
+  "lb_mape": 4.14,
+  "verdict": "OK",
+  "is_confirmed_by_leaderboard": true
+}

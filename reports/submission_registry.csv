@@ -1,0 +1,10 @@
+submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
+,submissions/test_official_mean_october_baseline.csv,official_mean_october_baseline,,54.34,45.66,OK,"official baseline, format check"
+,submissions/test_catboost_mape.csv,catboost_mape,,95.8,4.2,OK,first catboost/fallback candidate
+,submissions/test_catboost_log.csv,catboost_log,,95.8,4.2,OK,first catboost log/fallback candidate
+,submissions/test_baseline_last_month.csv,baseline_last_month,,95.86,4.14,OK,current best confirmed solution
+,submissions/test_last_month_mult_102.csv,last_month_multiplier,6.546990886284961,,,,pred = rto_lag_1 * 1.020
+,submissions/test_last_month_mult_1015.csv,last_month_multiplier,6.567553295443532,,,,pred = rto_lag_1 * 1.015
+,submissions/test_last_month_mult_101.csv,last_month_multiplier,6.613995153951047,,,,pred = rto_lag_1 * 1.010
+,submissions/test_ensemble_conservative_v1.csv,ensemble_conservative,6.761226590873122,,,,0.95 baseline + 0.05 best local candidate
+,submissions/test_ensemble_conservative_v2.csv,ensemble_conservative,6.773655858382513,,,,0.98 baseline + 0.02 best local candidate

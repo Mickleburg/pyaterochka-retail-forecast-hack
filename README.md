@@ -2,13 +2,13 @@
 
 ## Описание проекта
 
-Кодовое решение для соревнования X5 / Пятерочка: прогноз РТО магазинов на месяц 11, то есть на ноябрь. Цель текущего этапа - воспроизводимые скрипты для валидации по времени и генерации корректных CSV-сабмитов для Яндекс.Контеста.
+Репозиторий содержит воспроизводимое кодовое решение для соревнования X5 / Пятерочка: прогноз РТО магазинов на месяц 11, то есть на ноябрь. Основной фокус сейчас - безопасная генерация сабмитов, учет leaderboard-результатов и аккуратные эксперименты вокруг сильного baseline последнего месяца.
 
 Jupyter Notebook пока намеренно не делается. Он будет подготовлен позже, когда будет выбран лучший сабмит.
 
 ## Данные
 
-Основной файл данных:
+Файл данных:
 
 ```text
 data/train.csv
@@ -27,7 +27,7 @@ data/train.csv
 
 ## Формат Сабмита
 
-Итоговый файл для Контеста называется `test.csv` и содержит две колонки:
+Файл для Контеста должен содержать две колонки:
 
 ```text
 new_id,rto
@@ -35,10 +35,10 @@ new_id,rto
 
 Требования:
 
-- CSV должен быть **С заголовком** `new_id,rto`
-- 20615 строк данных без учета заголовка
+- сабмит для Контеста должен быть **С заголовком** `new_id,rto`
+- pandas index сохранять нельзя
+- строк данных должно быть 20615 без учета заголовка
 - ровно две колонки: `new_id`, `rto`
-- без pandas index
 - разделитель: запятая
 - кодировка: UTF-8
 - без NaN
@@ -46,7 +46,11 @@ new_id,rto
 - `new_id` уникальны
 - размер файла меньше 1 МБ
 
-**Файл для Контеста должен быть С заголовком. Не используйте `--no-header` для отправки.**
+Перед отправкой обязательно проверьте файл:
+
+```bash
+python scripts/check_submission.py submissions/test_baseline_last_month.csv
+```
 
 ## Архитектура Проекта
 
@@ -58,30 +62,40 @@ src/
   features.py
   metrics.py
   models.py
+  registry.py
   submit.py
   validation.py
 scripts/
   check_submission.py
+  list_submissions.py
   make_baseline_submission.py
   make_submission.py
+  record_leaderboard_result.py
+  restore_best_submission.py
+  run_experiments.py
   validate.py
 reports/
+  best_submission.json
+  experiment_results.csv
+  experiments.md
+  leaderboard_results.csv
+  recommended_submissions.md
+  submission_registry.csv
 submissions/
 ```
 
-Назначение основных файлов:
+Назначение:
 
-- `src/features.py` - лаги РТО, rolling-признаки через `shift(1)`, динамика, календарные признаки, строки месяца 11.
+- `src/features.py` - leakage-free лаги, rolling-признаки через `shift(1)`, динамика, календарные признаки.
 - `src/models.py` - baseline-модели, CatBoost MAPE, CatBoost log, fallback при отсутствии CatBoost.
 - `src/submit.py` - генерация прогнозов, официальный baseline, сохранение и строгая проверка CSV.
+- `src/registry.py` - учет leaderboard-результатов и best-known сабмита.
 - `src/validation.py` - time-based validation по месяцам 8, 9, 10.
-- `scripts/make_baseline_submission.py` - официальный mean October baseline и baseline по последнему месяцу.
-- `scripts/make_submission.py` - генерация ML-сабмитов.
-- `scripts/check_submission.py` - проверка готового CSV перед отправкой.
-- `reports/` - отчеты валидации.
+- `scripts/run_experiments.py` - консервативные эксперименты вокруг `baseline_last_month`.
+- `reports/` - отчеты, реестр результатов и рекомендации.
 - `submissions/` - готовые CSV-файлы.
 
-## Установка
+## Установка Окружения
 
 Linux / macOS:
 
@@ -99,63 +113,107 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Зависимости включают `pandas`, `numpy`, `scikit-learn`, `catboost`. Если CatBoost не установлен, код не ломает пайплайн и использует fallback, но для основного ML-сабмита рекомендуется установить CatBoost.
+Если CatBoost недоступен, пайплайн не ломается и использует fallback. Для полноценного ML-эксперимента CatBoost желательно установить.
 
-## Быстрый Старт
+## Проверка Формата
 
-Сначала сгенерируйте официальный baseline организаторов и скопируйте его в корень как `test.csv`:
+```bash
+python scripts/check_submission.py test.csv
+python scripts/check_submission.py submissions/test_baseline_last_month.csv
+```
+
+Checker печатает размер файла, первую строку, колонки, shape, dtypes, количество NaN, отрицательных `rto`, дубликатов `new_id`, head/tail и verdict.
+
+## Генерация Сабмитов
+
+Официальный baseline организаторов:
 
 ```bash
 python scripts/make_baseline_submission.py --official --make-test-copy
-python scripts/check_submission.py test.csv
 ```
 
-Этот файл нужен для первой контрольной отправки формата.
-
-## Валидация
-
-```bash
-python scripts/validate.py
-```
-
-Используется time-based validation:
-
-- train months `<= 7`, valid month `8`
-- train months `<= 8`, valid month `9`
-- train months `<= 9`, valid month `10`
-
-Метрика: MAPE в процентах. Результаты сохраняются в:
-
-```text
-reports/validation_results.csv
-```
-
-## Генерация ML-Сабмитов
-
-```bash
-python scripts/make_submission.py --model catboost_mape --make-test-copy
-python scripts/make_submission.py --model catboost_log --make-test-copy
-```
-
-Также можно сгенерировать baseline последнего месяца:
+Baseline последнего месяца:
 
 ```bash
 python scripts/make_baseline_submission.py
 ```
 
-Все contest-файлы по умолчанию сохраняются с заголовком. Флаг `--no-header` в `make_submission.py` оставлен только для отладки и не должен использоваться для Контеста.
+ML-сабмиты:
 
-## Рекомендованный Порядок Отправки
-
-1. Сначала отправить `submissions/test_official_mean_october_baseline.csv`, чтобы проверить формат. Ожидается OK и около 54.34 балла.
-2. Потом отправлять `submissions/test_baseline_last_month.csv`, CatBoost-сабмиты или ensemble.
-
-## Воспроизводимость
-
-В проекте фиксируется:
-
-```text
-RANDOM_SEED = 2026
+```bash
+python scripts/make_submission.py --model catboost_mape
+python scripts/make_submission.py --model catboost_log
 ```
 
-Случайный `train_test_split` не используется. Валидация строится только по времени.
+По умолчанию `make_submission.py` не перезаписывает `test.csv`. Если передать `--make-test-copy`, скрипт покажет предупреждение о текущем лучшем подтвержденном сабмите. Для экспериментов можно использовать защиту:
+
+```bash
+python scripts/make_submission.py --model catboost_mape --make-test-copy --restore-best-after
+```
+
+## Учёт Leaderboard-Результатов
+
+Известные результаты хранятся в:
+
+```text
+reports/leaderboard_results.csv
+reports/submission_registry.csv
+reports/best_submission.json
+```
+
+Записать новый результат:
+
+```bash
+python scripts/record_leaderboard_result.py --file submissions/test_candidate.csv --model candidate_name --lb-score 95.90 --verdict OK --comment "short note"
+```
+
+Если `verdict == OK` и score лучше текущего best-known, `reports/best_submission.json` обновится автоматически. `test.csv` при записи результата не трогается.
+
+Посмотреть список сабмитов:
+
+```bash
+python scripts/list_submissions.py
+```
+
+## Восстановление Лучшего Сабмита
+
+В зачёт идет последнее отправленное решение, поэтому после неудачного эксперимента нужно быстро вернуть лучший подтвержденный файл:
+
+```bash
+python scripts/restore_best_submission.py
+```
+
+Команда копирует файл из `reports/best_submission.json` в корень проекта как `test.csv` и проверяет формат.
+
+## Эксперименты
+
+Запустить текущий набор консервативных экспериментов:
+
+```bash
+python scripts/run_experiments.py
+```
+
+Скрипт сохраняет:
+
+- `reports/experiment_results.csv`
+- `reports/experiments.md`
+- `reports/recommended_submissions.md`
+- новые CSV в `submissions/`
+
+Эксперименты строятся вокруг `baseline_last_month`, потому что leaderboard показывает, что простой прогноз `РТО месяца 10` очень силен. Новые кандидаты не копируются в `test.csv` автоматически; после run script текущий best-known восстанавливается обратно.
+
+Перед отправкой нового решения проверьте, не хуже ли оно ожидаемо: последнее отправленное решение идет в зачёт.
+
+## Текущий Лучший Подтверждённый Результат
+
+```text
+submissions/test_baseline_last_month.csv
+score = 95.86
+LB MAPE = 4.14
+```
+
+Для восстановления:
+
+```bash
+python scripts/restore_best_submission.py
+```
