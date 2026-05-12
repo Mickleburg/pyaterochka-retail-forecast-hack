@@ -1,5 +1,10 @@
 submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
-,submissions/test_official_mean_october_baseline.csv,official_mean_october_baseline,,54.34,45.66,OK,"official baseline, format check"
-,submissions/test_catboost_mape.csv,catboost_mape,,95.8,4.2,OK,first catboost/fallback candidate
-,submissions/test_catboost_log.csv,catboost_log,,95.8,4.2,OK,first catboost log/fallback candidate
-,submissions/test_baseline_last_month.csv,baseline_last_month,,95.86,4.14,OK,current best confirmed solution
+,submissions/test_official_mean_october_baseline.csv,official_mean_october_baseline,,54.34,45.66,OK,"официальный бейзлайн, проверка формата"
+,submissions/test_catboost_mape.csv,catboost_mape,,95.8,4.2,OK,первый кандидат catboost/fallback
+,submissions/test_catboost_log.csv,catboost_log,,95.8,4.2,OK,первый кандидат catboost log/fallback
+,submissions/test_baseline_last_month.csv,baseline_last_month,,95.86,4.14,OK,текущее лучшее подтвержденное решение
+,submissions/test_ensemble_conservative_v1.csv,ensemble_conservative_v1,,95.86,4.14,OK,"такой же результат, как у текущего лучшего"
+,submissions/test_ensemble_conservative_v2.csv,ensemble_conservative_v2,,95.86,4.14,OK,"такой же результат, как у текущего лучшего"
+,submissions/test_last_month_mult_101.csv,last_month_mult_101,,95.73,4.27,OK,"множитель 1.010, хуже текущего лучшего"
+,submissions/test_last_month_mult_102.csv,last_month_mult_102,,95.4,4.6,OK,"множитель 1.020, хуже текущего лучшего"
+,submissions/test_last_month_mult_1015.csv,last_month_mult_1015,,0.0,100.0,CE,CE в Контесте; локальный формат проверен отдельно

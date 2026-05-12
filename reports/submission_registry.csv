@@ -1,10 +1,18 @@
 submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
-,submissions/test_official_mean_october_baseline.csv,official_mean_october_baseline,,54.34,45.66,OK,"official baseline, format check"
-,submissions/test_catboost_mape.csv,catboost_mape,,95.8,4.2,OK,first catboost/fallback candidate
-,submissions/test_catboost_log.csv,catboost_log,,95.8,4.2,OK,first catboost log/fallback candidate
-,submissions/test_baseline_last_month.csv,baseline_last_month,,95.86,4.14,OK,current best confirmed solution
-,submissions/test_last_month_mult_102.csv,last_month_multiplier,6.546990886284961,,,,pred = rto_lag_1 * 1.020
-,submissions/test_last_month_mult_1015.csv,last_month_multiplier,6.567553295443532,,,,pred = rto_lag_1 * 1.015
-,submissions/test_last_month_mult_101.csv,last_month_multiplier,6.613995153951047,,,,pred = rto_lag_1 * 1.010
-,submissions/test_ensemble_conservative_v1.csv,ensemble_conservative,6.761226590873122,,,,0.95 baseline + 0.05 best local candidate
-,submissions/test_ensemble_conservative_v2.csv,ensemble_conservative,6.773655858382513,,,,0.98 baseline + 0.02 best local candidate
+,submissions/test_official_mean_october_baseline.csv,official_mean_october_baseline,,54.34,45.66,OK,"официальный бейзлайн, проверка формата"
+,submissions/test_catboost_mape.csv,catboost_mape,,95.8,4.2,OK,первый кандидат catboost/fallback
+,submissions/test_catboost_log.csv,catboost_log,,95.8,4.2,OK,первый кандидат catboost log/fallback
+,submissions/test_baseline_last_month.csv,baseline_last_month,,95.86,4.14,OK,текущее лучшее подтвержденное решение
+,submissions/test_ensemble_conservative_v1.csv,ensemble_conservative_v1,,95.86,4.14,OK,"такой же результат, как у текущего лучшего"
+,submissions/test_ensemble_conservative_v2.csv,ensemble_conservative_v2,,95.86,4.14,OK,"такой же результат, как у текущего лучшего"
+,submissions/test_last_month_mult_101.csv,last_month_mult_101,,95.73,4.27,OK,"множитель 1.010, хуже текущего лучшего"
+,submissions/test_last_month_mult_102.csv,last_month_mult_102,,95.4,4.6,OK,"множитель 1.020, хуже текущего лучшего"
+,submissions/test_last_month_mult_1015.csv,last_month_mult_1015,,0.0,100.0,CE,CE в Контесте; локальный формат проверен отдельно
+,submissions/test_last_month_mult_09975.csv,last_month_multiplier,6.838395016079216,,,,Малый глобальный множитель 0.9975.
+,submissions/test_last_month_mult_0995.csv,last_month_multiplier,6.900025280853404,,,,Малый глобальный множитель 0.9950.
+,submissions/test_last_month_mult_10025.csv,last_month_multiplier,6.731614244363499,,,,Малый глобальный множитель 1.0025.
+,submissions/test_ratio_shrink_b0p05_c97_103.csv,ratio_shrink_model,6.778170001937117,,,,"Модель отношения с сильным shrink к 1; beta=0.05, clip=(0.97, 1.03)."
+,submissions/test_residual_centered_v1.csv,residual_centered,6.909652925124718,,,,Центрированная относительная поправка по региону с ограничением +/-1%.
+,submissions/test_segment_region_shrink_v1.csv,segment_shrink,6.78941441037845,,,,"Сегментная поправка по region; shrink=0.05, k=500, clip=(0.97, 1.03)."
+,submissions/test_segment_area_shrink_v1.csv,segment_shrink,6.783316208012288,,,,"Сегментная поправка по area; shrink=0.05, k=500, clip=(0.97, 1.03)."
+,submissions/test_segment_blend_shrink_v1.csv,segment_blend_shrink,6.786278854563242,,,,"Смесь сегментных поправок регион/площадь/кассы; shrink=0.05, k=500, clip=(0.97, 1.03)."

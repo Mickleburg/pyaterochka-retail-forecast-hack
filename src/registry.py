@@ -33,7 +33,7 @@ KNOWN_LEADERBOARD_ROWS = [
         "lb_score": 54.34,
         "lb_mape": 45.66,
         "verdict": "OK",
-        "comment": "official baseline, format check",
+        "comment": "официальный бейзлайн, проверка формата",
     },
     {
         "submitted_at": "",
@@ -43,7 +43,7 @@ KNOWN_LEADERBOARD_ROWS = [
         "lb_score": 95.80,
         "lb_mape": 4.20,
         "verdict": "OK",
-        "comment": "first catboost/fallback candidate",
+        "comment": "первый кандидат catboost/fallback",
     },
     {
         "submitted_at": "",
@@ -53,7 +53,7 @@ KNOWN_LEADERBOARD_ROWS = [
         "lb_score": 95.80,
         "lb_mape": 4.20,
         "verdict": "OK",
-        "comment": "first catboost log/fallback candidate",
+        "comment": "первый кандидат catboost log/fallback",
     },
     {
         "submitted_at": "",
@@ -63,7 +63,7 @@ KNOWN_LEADERBOARD_ROWS = [
         "lb_score": 95.86,
         "lb_mape": 4.14,
         "verdict": "OK",
-        "comment": "current best confirmed solution",
+        "comment": "текущее лучшее подтвержденное решение",
     },
 ]
 
@@ -97,13 +97,13 @@ def ensure_registry_files() -> None:
 
 def load_leaderboard() -> pd.DataFrame:
     ensure_registry_files()
-    return pd.read_csv(LEADERBOARD_RESULTS_PATH)
+    return pd.read_csv(LEADERBOARD_RESULTS_PATH, encoding="utf-8")
 
 
 def save_leaderboard(df: pd.DataFrame) -> None:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     df = df.loc[:, LEADERBOARD_COLUMNS]
-    df.to_csv(LEADERBOARD_RESULTS_PATH, index=False)
+    df.to_csv(LEADERBOARD_RESULTS_PATH, index=False, encoding="utf-8")
 
 
 def load_best_submission() -> dict:
@@ -142,7 +142,20 @@ def record_leaderboard_result(
     }
 
     df = load_leaderboard()
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    key_cols = ["filename", "model_name", "lb_score", "verdict"]
+    existing = df.copy()
+    existing["filename"] = existing["filename"].astype(str)
+    existing["model_name"] = existing["model_name"].astype(str)
+    existing["lb_score_num"] = pd.to_numeric(existing["lb_score"], errors="coerce")
+    existing["verdict"] = existing["verdict"].astype(str)
+    is_duplicate = (
+        (existing["filename"] == str(row["filename"]))
+        & (existing["model_name"] == str(row["model_name"]))
+        & (existing["lb_score_num"].round(8) == round(float(row["lb_score"]), 8))
+        & (existing["verdict"] == str(row["verdict"]))
+    ).any()
+    if not is_duplicate:
+        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     save_leaderboard(df)
 
     best = load_best_submission()
@@ -172,7 +185,7 @@ def restore_best_submission() -> Path:
 def best_warning_text() -> str:
     best = load_best_submission()
     return (
-        "WARNING: test.csv will be overwritten. "
-        f"Current best confirmed submission is {best['filename']} "
+        "WARNING: test.csv будет перезаписан. "
+        f"Текущий лучший подтвержденный сабмит: {best['filename']} "
         f"score {best['lb_score']:.2f}."
     )

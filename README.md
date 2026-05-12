@@ -204,6 +204,15 @@ python scripts/run_experiments.py
 
 Перед отправкой нового решения проверьте, не хуже ли оно ожидаемо: последнее отправленное решение идет в зачёт.
 
+## Правила Ведения Экспериментов
+
+- Новый кандидат сначала сохраняется только в `submissions/`.
+- `test.csv` не перезаписывается автоматически.
+- Перед отправкой кандидат проверяется командой `python scripts/check_submission.py <path>`.
+- После отправки в Контест результат записывается в реестр через `scripts/record_leaderboard_result.py`.
+- Если кандидат хуже текущего лучшего, нужно восстановить лучший `test.csv` командой `python scripts/restore_best_submission.py`.
+- Не стоит отправлять агрессивные варианты, которые заметно уходят от `baseline_last_month`: leaderboard уже показал, что ноябрь очень близок к октябрю.
+
 ## Текущий Лучший Подтверждённый Результат
 
 ```text
@@ -211,6 +220,13 @@ submissions/test_baseline_last_month.csv
 score = 95.86
 LB MAPE = 4.14
 ```
+
+Уже проверенные выводы leaderboard:
+
+- `submissions/test_ensemble_conservative_v1.csv` и `submissions/test_ensemble_conservative_v2.csv` повторили score `95.86`, но не улучшили baseline.
+- `submissions/test_last_month_mult_101.csv` получил score `95.73`, то есть множитель `1.010` хуже baseline.
+- `submissions/test_last_month_mult_102.csv` получил score `95.40`, то есть множитель `1.020` заметно хуже baseline.
+- `submissions/test_last_month_mult_1015.csv` получил CE; локальная проверка формата не выявила проблему.
 
 Для восстановления:
 

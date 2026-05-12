@@ -1,35 +1,86 @@
-# Experiment Analysis
+# Отчет по экспериментам
 
-Leaderboard already shows that `baseline_last_month` is very strong: the confirmed score is 95.86, which corresponds to LB MAPE 4.14.
+## Краткий вывод
 
-The first CatBoost/fallback candidates scored slightly worse than last-month baseline. The likely reason is that the hidden November target is dominated by store-level continuity: the latest observed RTO contains most of the signal, while model-based corrections can overfit fold-specific seasonality or smooth away useful store-level information.
+Leaderboard подтвердил, что `baseline_last_month` остается лучшим или делит первое место. Простое увеличение прогноза ухудшило результат: множитель 1.010 дал score 95.73, множитель 1.020 дал score 95.40. Консервативные ансамбли v1/v2 дали тот же score 95.86, то есть не улучшили baseline.
 
-Local CV is useful for rejecting risky changes, but it is not perfectly aligned with the leaderboard. The mean of folds 8/9/10 can be pulled by month 9, while fold 10 is the closest available proxy for November. Weighted folds are therefore tracked separately:
+Следовательно, скрытый ноябрь очень близок к октябрю. Новые кандидаты должны быть микрокоррекциями вокруг `РТО_10`, а не самостоятельными агрессивными моделями.
 
-- mean folds 8,9,10: broad stability check;
-- fold 10 only: closest chronological proxy;
-- weighted 0.2/0.3/0.5: moderate recency bias;
-- weighted 0.1/0.2/0.7: strong recency bias.
+## Расследование CE для test_last_month_mult_1015.csv
 
-Conclusion: improvements should be small and controlled. The best candidates should remain very close to `rto_month_10`, with small multiplicative or shrinkage corrections.
+- Файл существует: да.
+- Размер файла: 378669 байт.
+- Первая строка: `new_id,rto`.
+- Shape через `pd.read_csv`: (20615, 2).
+- Колонки: ['new_id', 'rto'].
+- NaN: 0.
+- Отрицательные `rto`: 0.
+- Дубликаты `new_id`: 0.
+- BOM: нет.
+- NUL-байты: 0.
+- CRLF строк: 20616, LF строк: 20616, одиночных CR: 0.
+- Локальная проверка формата не выявила проблемы; вероятно, в Контест был отправлен не тот файл или произошла ошибка загрузки.
 
-Top experiments by weighted_mape_127:
+## Калибровка локальной валидации по leaderboard
+
+Локальная валидация переоценила положительные множители: `last_month_mult_102` выглядел хорошо по fold10 и weighted 0.1/0.2/0.7, но на LB оказался заметно хуже baseline. Поэтому теперь локальные метрики используются как фильтр риска, а не как прямой прогноз leaderboard.
+
+Основные локальные сигналы после калибровки:
+
+- fold10 важен, но сам по себе недостаточен;
+- weighted_mape_127 полезен как recency-weighted фильтр, но он ошибся на положительных множителях;
+- отклонение от `baseline_last_month` нужно явно штрафовать;
+- кандидаты с большим числом магазинов, измененных более чем на 3%, считаются рискованными;
+- положительные глобальные множители теперь считаются более рискованными, потому что LB уже показал ухудшение.
+
+Формула `risk_score`:
 
 ```text
-         experiment_name            model_name  fold8_mape  fold9_mape  fold10_mape  mean_mape  weighted_mape_235  weighted_mape_127                          generated_submission  mean_relative_delta_vs_best  max_relative_delta_vs_best                                              comment
-     last_month_mult_102 last_month_multiplier    6.532848   10.058549     5.545709   7.379035           7.096989           6.546991      submissions/test_last_month_mult_102.csv                       0.0200                      0.0200                             pred = rto_lag_1 * 1.020
-    last_month_mult_1015 last_month_multiplier    6.156635    9.770745     5.711058   7.212813           7.018080           6.567553     submissions/test_last_month_mult_1015.csv                       0.0150                      0.0150                             pred = rto_lag_1 * 1.015
-     last_month_mult_101 last_month_multiplier    5.805231    9.503443     5.903976   7.070883           6.964067           6.613995      submissions/test_last_month_mult_101.csv                       0.0100                      0.0100                             pred = rto_lag_1 * 1.010
-    damped_trend_add_0p1      damped_trend_add    5.485743    8.751364     6.260846   6.832651           6.852980           6.681439                                                                        NaN                         NaN                      additive damped trend alpha=0.1
-    last_month_mult_1005 last_month_multiplier    5.484560    9.257209     6.123618   6.955129           6.935884           6.686430                                                                        NaN                         NaN                             pred = rto_lag_1 * 1.005
-  damped_trend_ratio_0p1    damped_trend_ratio    5.530253    8.810772     6.270821   6.870615           6.884693           6.704754                                                                        NaN                         NaN                         ratio damped trend alpha=0.1
-   damped_trend_add_0p25      damped_trend_add    6.012057    8.388624     6.363668   6.921450           6.900833           6.733498                                                                        NaN                         NaN                     additive damped trend alpha=0.25
- damped_trend_ratio_0p25    damped_trend_ratio    6.137067    8.524861     6.337851   6.999926           6.953797           6.755174                                                                        NaN                         NaN                        ratio damped trend alpha=0.25
-ensemble_conservative_v1 ensemble_conservative    5.252057    9.075280     6.315664   6.881000           6.930827           6.761227 submissions/test_ensemble_conservative_v1.csv                       0.0010                      0.0010            0.95 baseline + 0.05 best local candidate
-ensemble_conservative_v2 ensemble_conservative    5.219259    9.049135     6.345576   6.871323           6.931380           6.773656 submissions/test_ensemble_conservative_v2.csv                       0.0004                      0.0004            0.98 baseline + 0.02 best local candidate
-     baseline_last_month   baseline_last_month    5.197672    9.031903     6.365661   6.865079           6.931936           6.782111                                                                        NaN                         NaN                              confirmed best baseline
-      last_month_mult_10 last_month_multiplier    5.197672    9.031903     6.365661   6.865079           6.931936           6.782111                                                                        NaN                         NaN                             pred = rto_lag_1 * 1.000
-    damped_trend_add_0p0      damped_trend_add    5.197672    9.031903     6.365661   6.865079           6.931936           6.782111                                                                        NaN                         NaN                      additive damped trend alpha=0.0
-  damped_trend_ratio_0p0    damped_trend_ratio    5.197672    9.031903     6.365661   6.865079           6.931936           6.782111                                                                        NaN                         NaN                         ratio damped trend alpha=0.0
- group_growth_blend_k300    group_growth_blend    5.741245    9.343466     6.204533   7.096415           7.053555           6.785991                                                                        NaN                         NaN blend of region/area/cash group growth, shrink k=300
+risk_score = weighted_mape_127
+             + 0.5 * max(0, fold10_mape - baseline_fold10_mape)
+             + 10 * mean_abs_relative_delta_vs_baseline
+             + 5 * share_abs_delta_gt_3pct
+             + penalty_for_positive_global_multiplier
 ```
+
+Чем меньше `risk_score`, тем безопаснее кандидат. Эта метрика намеренно штрафует даже локально перспективные варианты, если они слишком далеко уходят от октябрьского baseline.
+
+## Leaderboard-результаты
+
+```text
+ submitted_at                                            filename                     model_name  local_cv_mape  lb_score  lb_mape verdict                                           comment
+          NaN submissions/test_official_mean_october_baseline.csv official_mean_october_baseline            NaN     54.34    45.66      OK            официальный бейзлайн, проверка формата
+          NaN                  submissions/test_catboost_mape.csv                  catboost_mape            NaN     95.80     4.20      OK                 первый кандидат catboost/fallback
+          NaN                   submissions/test_catboost_log.csv                   catboost_log            NaN     95.80     4.20      OK             первый кандидат catboost log/fallback
+          NaN            submissions/test_baseline_last_month.csv            baseline_last_month            NaN     95.86     4.14      OK             текущее лучшее подтвержденное решение
+          NaN       submissions/test_ensemble_conservative_v1.csv       ensemble_conservative_v1            NaN     95.86     4.14      OK        такой же результат, как у текущего лучшего
+          NaN       submissions/test_ensemble_conservative_v2.csv       ensemble_conservative_v2            NaN     95.86     4.14      OK        такой же результат, как у текущего лучшего
+          NaN            submissions/test_last_month_mult_101.csv            last_month_mult_101            NaN     95.73     4.27      OK            множитель 1.010, хуже текущего лучшего
+          NaN            submissions/test_last_month_mult_102.csv            last_month_mult_102            NaN     95.40     4.60      OK            множитель 1.020, хуже текущего лучшего
+          NaN           submissions/test_last_month_mult_1015.csv           last_month_mult_1015            NaN      0.00   100.00      CE CE в Контесте; локальный формат проверен отдельно
+```
+
+## Топ экспериментов по risk_score
+
+```text
+                   experiment_name            model_name  fold10_mape  weighted_mape_127  risk_score generated_submission  max_rel_delta_vs_baseline  share_abs_delta_gt_3pct  lb_score lb_verdict
+      outlier_rollback_t1p15_b0p95      outlier_rollback     6.374613           6.770237    6.780457                                        0.030602                 0.000049       NaN           
+               baseline_last_month   baseline_last_month     6.365661           6.782111    6.782111                                        0.000000                 0.000000     95.86         OK
+                 last_month_mult_1 last_month_multiplier     6.365661           6.782111    6.782111                                        0.000000                 0.000000       NaN           
+segment_alcohol_s0p05_k500_c98_102        segment_shrink     6.365631           6.782155    6.782216                                        0.000051                 0.000000       NaN           
+segment_alcohol_s0p05_k500_c97_103        segment_shrink     6.365631           6.782155    6.782216                                        0.000051                 0.000000       NaN           
+segment_alcohol_s0p05_k300_c98_102        segment_shrink     6.365635           6.782155    6.782217                                        0.000052                 0.000000       NaN           
+segment_alcohol_s0p05_k300_c97_103        segment_shrink     6.365635           6.782155    6.782217                                        0.000052                 0.000000       NaN           
+segment_alcohol_s0p05_k100_c98_102        segment_shrink     6.365638           6.782155    6.782217                                        0.000053                 0.000000       NaN           
+segment_alcohol_s0p05_k100_c97_103        segment_shrink     6.365638           6.782155    6.782217                                        0.000053                 0.000000       NaN           
+ segment_alcohol_s0p05_k50_c97_103        segment_shrink     6.365639           6.782155    6.782217                                        0.000053                 0.000000       NaN           
+ segment_alcohol_s0p05_k50_c98_102        segment_shrink     6.365639           6.782155    6.782217                                        0.000053                 0.000000       NaN           
+ segment_alcohol_s0p1_k500_c97_103        segment_shrink     6.365602           6.782199    6.782322                                        0.000102                 0.000000       NaN           
+ segment_alcohol_s0p1_k500_c98_102        segment_shrink     6.365602           6.782199    6.782322                                        0.000102                 0.000000       NaN           
+ segment_alcohol_s0p1_k300_c97_103        segment_shrink     6.365609           6.782199    6.782324                                        0.000104                 0.000000       NaN           
+ segment_alcohol_s0p1_k300_c98_102        segment_shrink     6.365609           6.782199    6.782324                                        0.000104                 0.000000       NaN           
+```
+
+## NLP / embeddings
+
+В данных есть категориальные признаки (`Регион`, `Населенный пункт`, категории даты открытия и площади), но нет свободного текста. Поэтому классический NLP или Word2Vec здесь выглядит избыточным. Более уместны frequency/target/segment encodings, которые частично проверяются через сегментные shrinkage-поправки. Отдельный NLP-сабмит не генерировался.
