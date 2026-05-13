@@ -1,45 +1,38 @@
 # Рекомендованные сабмиты
 
-Текущий лучший подтвержденный сабмит: `submissions/test_ratio_shrink_b0p05_c97_103.csv`, score `95.87`, LB MAPE `4.13`.
+Текущий лучший подтвержденный файл: `submissions/test_ratio_shrink_b0p06_c97_103.csv`, score `95.88`. Его можно восстановить командой `python scripts/restore_best_submission.py`.
 
-## Новые кандидаты
+## Safe candidates
 
 ```text
-                                generated_submission          model_name  weighted_mape_127  risk_score  mean_abs_relative_delta_vs_current_best  max_rel_delta_vs_current_best  share_abs_delta_vs_current_best_gt_0p3pct
-    submissions/test_best_ratio_blend_area_98_02.csv    best_ratio_blend           6.778269    6.778498                                 0.000009                       0.000030                                        0.0
-submissions/test_best_ratio_blend_baseline_95_05.csv    best_ratio_blend           6.778360    6.778913                                 0.000022                       0.000063                                        0.0
-     submissions/test_ratio_shrink_b0p06_c97_103.csv  ratio_shrink_model           6.777418    6.779197                                 0.000089                       0.000253                                        0.0
-     submissions/test_ratio_shrink_b0p07_c98_102.csv  ratio_shrink_model           6.776673    6.780231                                 0.000178                       0.000506                                        0.0
-     submissions/test_ratio_shrink_b0p04_c97_103.csv  ratio_shrink_model           6.778935    6.781152                                 0.000089                       0.000253                                        0.0
-     submissions/test_ratio_shrink_b0p03_c99_101.csv  ratio_shrink_model           6.779713    6.784156                                 0.000178                       0.000506                                        0.0
-         submissions/test_ratio_segment_prior_v1.csv ratio_segment_prior           6.779750    6.784206                                 0.000178                       0.000504                                        0.0
-          submissions/test_ratio_gated_stable_v1.csv         ratio_gated           6.783271    6.792135                                 0.000324                       0.001265                                        0.0
+                                 generated_submission    hypothesis_group  safe_risk_score  weighted_mape_127  mean_abs_relative_delta_vs_current_best  max_rel_delta_vs_current_best  share_changed_stores
+            submissions/test_decile_beta_ratio_v1.csv             low_rto         6.776698           6.775090                                 0.000089                       0.000738              0.400000
+          submissions/test_weighted_oof_global_v1.csv    weighted_mixture         6.891072           6.785762                                 0.000757                       0.040697              1.000000
+submissions/test_segment_calibrated_region_rto_v1.csv segment_calibration         7.054844           6.809963                                 0.000981                       0.004360              1.000000
+                submissions/test_cluster_blend_v1.csv          clustering         7.261613           6.794212                                 0.000995                       0.009062              1.000000
+       submissions/test_selector_by_rto_decile_v1.csv            selector         7.399667           6.752065                                 0.000909                       0.053199              0.499976
+     submissions/test_segment_calibrated_trend_v1.csv segment_calibration         7.552839           6.829344                                 0.001945                       0.003275              1.000000
 ```
 
-## Что отправлять дальше
+## Exploratory candidates
 
-1. `submissions/test_best_ratio_blend_area_98_02.csv`
-   - идея: Смесь: 98% current best + 2% segment area shrink.
-   - среднее абсолютное относительное отличие от current best: 0.000009; максимальное: 0.000030; risk_score: 6.778498
-   - риск приемлемый: кандидат остается очень близко к подтвержденному ratio_shrink.
-2. `submissions/test_best_ratio_blend_baseline_95_05.csv`
-   - идея: Смесь: 95% current best ratio_shrink + 5% baseline_last_month.
-   - среднее абсолютное относительное отличие от current best: 0.000022; максимальное: 0.000063; risk_score: 6.778913
-   - риск приемлемый: кандидат остается очень близко к подтвержденному ratio_shrink.
-3. `submissions/test_ratio_shrink_b0p06_c97_103.csv`
-   - идея: Тонкая настройка ratio_shrink: beta=0.06, clip=(0.97, 1.03).
-   - среднее абсолютное относительное отличие от current best: 0.000089; максимальное: 0.000253; risk_score: 6.779197
-   - риск приемлемый: кандидат остается очень близко к подтвержденному ratio_shrink.
+```text
+                            generated_submission hypothesis_group  exploratory_score  weighted_mape_127  mean_abs_relative_delta_vs_current_best  max_rel_delta_vs_current_best  share_changed_stores
+ submissions/test_temporal_ensemble_ratio_v1.csv   temporal_model           6.728374           6.720591                                 0.001946                       0.029619                   1.0
+submissions/test_exploratory_segment_bias_v1.csv      exploratory           6.867223           6.846699                                 0.005131                       0.017414                   1.0
+```
 
-Не стоит повторно отправлять глобальные множители `1.010`, `1.020` и `residual_centered_v1`: leaderboard уже показал ухудшение.
+## Как отправлять
 
-После каждого результата LB нужно записать его в реестр:
+1. Сначала отправлять safe candidates: они ближе к current best и меньше рискуют потерять качество.
+2. Если safe-кандидаты не двигают score, отправлять exploratory candidates: они меняют более адресные группы магазинов и могут сдвинуть плато 95.88.
+3. После каждого результата обязательно записывать LB в реестр:
 
 ```bash
 python scripts/record_leaderboard_result.py --file submissions/<file>.csv --model <model_name> --lb-score <score> --verdict OK --comment "комментарий"
 ```
 
-Восстановить текущий лучший `test.csv`:
+4. Если новый файл хуже, восстановить best:
 
 ```bash
 python scripts/restore_best_submission.py

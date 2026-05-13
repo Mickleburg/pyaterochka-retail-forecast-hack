@@ -18,11 +18,24 @@ submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
 2026-05-12T17:19:23+00:00,submissions/test_segment_blend_shrink_v1.csv,segment_blend_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка blend, на уровне baseline"
 2026-05-12T17:19:28+00:00,submissions/test_segment_region_shrink_v1.csv,segment_region_shrink_v1,,95.86,4.140000000000001,OK,"сегментная микропоправка region, на уровне baseline"
 2026-05-12T17:38:37+00:00,submissions/test_segment_alcohol_s0p05_k500_c97_103.csv,segment_alcohol_s0p05_k500_c97_103,,95.86,4.140000000000001,OK,"сегментная микропоправка alcohol, на уровне baseline"
-,submissions/test_ratio_shrink_b0p03_c99_101.csv,ratio_shrink_model,6.779713258235292,,,,"Тонкая настройка ratio_shrink: beta=0.03, clip=(0.99, 1.01)."
-,submissions/test_ratio_shrink_b0p04_c97_103.csv,ratio_shrink_model,6.778934606099019,,,,"Тонкая настройка ratio_shrink: beta=0.04, clip=(0.97, 1.03)."
-,submissions/test_ratio_shrink_b0p06_c97_103.csv,ratio_shrink_model,6.777417927919645,,,,"Тонкая настройка ratio_shrink: beta=0.06, clip=(0.97, 1.03)."
-,submissions/test_ratio_shrink_b0p07_c98_102.csv,ratio_shrink_model,6.77667262638928,,,,"Тонкая настройка ratio_shrink: beta=0.07, clip=(0.98, 1.02)."
-,submissions/test_best_ratio_blend_baseline_95_05.csv,best_ratio_blend,6.778359624755086,,,,Смесь: 95% current best ratio_shrink + 5% baseline_last_month.
-,submissions/test_best_ratio_blend_area_98_02.csv,best_ratio_blend,6.778269374793958,,,,Смесь: 98% current best + 2% segment area shrink.
-,submissions/test_ratio_gated_stable_v1.csv,ratio_gated,6.78327118598958,,,,Применять ratio_shrink только для стабильных магазинов: volatility < 0.05.
-,submissions/test_ratio_segment_prior_v1.csv,ratio_segment_prior,6.779750143869419,,,,"Ratio shrink с сегментным prior: beta_model=0.03, beta_segment=0.01, segment=blend, clip=(0.99, 1.01)."
+2026-05-12T21:05:34+00:00,submissions/test_ratio_shrink_b0p06_c97_103.csv,ratio_shrink_b0p06_c97_103,,95.88,4.1200000000000045,OK,"ratio_shrink beta 0.06, новый лучший уровень"
+2026-05-12T21:05:34+00:00,submissions/test_ratio_shrink_b0p07_c98_102.csv,ratio_shrink_b0p07_c98_102,,95.88,4.1200000000000045,OK,"ratio_shrink beta 0.07, новый лучший уровень"
+,submissions/test_best_ratio_blend_baseline_95_05.csv,best_ratio_blend,6.777643154240399,,,,Смесь: 95% current best ratio_shrink + 5% baseline_last_month.
+,submissions/test_best_ratio_blend_area_98_02.csv,best_ratio_blend,6.777531601785332,,,,Смесь: 98% current best + 2% segment area shrink.
+,submissions/test_selector_segment_v1.csv,selector_segment,6.779985632732149,,,,"Segment winner selector: для низкой волатильности area-shrink, иначе смесь current best и region-shrink."
+,submissions/test_selector_meta_v1.csv,selector_meta,6.777957823527959,,,,"Мета-selector без тяжелых зависимостей: смешивает current best, analog и leakage-free target-encoding ratio по признакам устойчивости."
+,submissions/test_mixture_global_v1.csv,mixture_of_experts,6.778544310677433,,,,"Mixture of experts с фиксированными консервативными весами: current best, analog, ML target encoding, area shrink."
+,submissions/test_mixture_bucket_v1.csv,mixture_of_experts,6.77806853385759,,,,"Mixture by volatility bucket: analog для стабильных, ML ratio для волатильных, затем safety blend с current best."
+,submissions/test_analog_knn_blend_v1.csv,analog_knn,6.779241725839484,,,,Безопасный blend: 90% current best + 10% analog KNN.
+,submissions/test_ml_ratio_te_blend_v1.csv,ml_ratio_te,6.776786385118243,,,,Безопасный blend: 90% current best + 10% leakage-free target-encoding ratio.
+,submissions/test_segment_calibrated_region_rto_v1.csv,segment_calibrated,6.809962761194772,,,,"Сегментная калибровка bias по region_rto, shrink=0.20, clip=(0.98,1.02)."
+,submissions/test_segment_calibrated_trend_v1.csv,segment_calibrated,6.829344052283091,,,,"Сегментная калибровка bias по trend, shrink=0.20, clip=(0.98,1.02)."
+,submissions/test_segment_calibrated_rto_decile_v1.csv,segment_calibrated,6.81357261880412,,,,"Сегментная калибровка bias по rto_decile, shrink=0.20, clip=(0.98,1.02)."
+,submissions/test_weighted_oof_global_v1.csv,weighted_mixture,6.785761621916977,,,,OOF-оптимизация глобальных весов с ограничением current_best >= 0.60.
+,submissions/test_temporal_ridge_ratio_v1.csv,temporal_pattern,6.672904939113282,,,,Temporal pattern model: robust linear model по нормализованной траектории.
+,submissions/test_temporal_ensemble_ratio_v1.csv,temporal_pattern,6.720590944234064,,,,Ансамбль temporal ridge и HGB.
+,submissions/test_cluster_blend_v1.csv,trajectory_cluster,6.794212372657122,,,,Blend current best с кластерным прогнозом.
+,submissions/test_decile_beta_ratio_v1.csv,mape_aware,6.775090276041144,,,,Разная beta ratio_shrink по decile РТО.
+,submissions/test_exploratory_segment_bias_v1.csv,exploratory_segment,6.846698601896261,,,,Исследовательская segment bias calibration по region x trend.
+,submissions/test_selector_by_rto_decile_v1.csv,segment_selector,6.752064780145123,,,,"Безопасный selector по сегменту rto_decile: альтернативная модель получает вес 25%, остальное current best."
+,submissions/test_october_high_rollback_v1.csv,october_outlier,6.771779989803658,,,,Безопасный High October rollback: высокий октябрь слегка откатывается к rolling median.

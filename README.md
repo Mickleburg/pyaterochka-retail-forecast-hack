@@ -66,7 +66,10 @@ src/
   submit.py
   validation.py
 scripts/
+  analyze_leaderboard_alignment.py
+  analyze_submission_space.py
   check_submission.py
+  error_analysis.py
   list_submissions.py
   make_baseline_submission.py
   make_submission.py
@@ -76,11 +79,15 @@ scripts/
   validate.py
 reports/
   best_submission.json
+  error_analysis.md
+  error_slices.csv
   experiment_results.csv
   experiments.md
+  leaderboard_alignment.md
   leaderboard_results.csv
   recommended_submissions.md
   submission_registry.csv
+  submission_space_analysis.md
 submissions/
 ```
 
@@ -200,7 +207,15 @@ python scripts/run_experiments.py
 - `reports/recommended_submissions.md`
 - новые CSV в `submissions/`
 
-Эксперименты строятся вокруг `baseline_last_month`, потому что leaderboard показывает, что простой прогноз `РТО месяца 10` очень силен. Новые кандидаты не копируются в `test.csv` автоматически; после run script текущий best-known восстанавливается обратно.
+Дополнительная аналитика:
+
+```bash
+python scripts/error_analysis.py
+python scripts/analyze_submission_space.py
+python scripts/analyze_leaderboard_alignment.py
+```
+
+Эксперименты строятся вокруг текущего best `ratio_shrink_b0p06_c97_103`, потому что плато 95.88 уже почти исчерпало простые микропоправки. `scripts/run_experiments.py` делает OOF-прогнозы, segment error mining, segment calibration, selector/gating, weighted mixture, temporal pattern model, clustering, outlier-specific и low-RTO MAPE-aware кандидатов. Новые кандидаты не копируются в `test.csv` автоматически; после run script текущий best-known восстанавливается обратно.
 
 Перед отправкой нового решения проверьте, не хуже ли оно ожидаемо: последнее отправленное решение идет в зачёт.
 
@@ -216,14 +231,15 @@ python scripts/run_experiments.py
 ## Текущий Лучший Подтверждённый Результат
 
 ```text
-submissions/test_ratio_shrink_b0p05_c97_103.csv
-score = 95.87
-LB MAPE = 4.13
+submissions/test_ratio_shrink_b0p06_c97_103.csv
+score = 95.88
+LB MAPE = 4.12
 ```
 
 Уже проверенные выводы leaderboard:
 
-- `submissions/test_ratio_shrink_b0p05_c97_103.csv` стал новым лучшим подтвержденным сабмитом: score `95.87`.
+- `submissions/test_ratio_shrink_b0p05_c97_103.csv` впервые улучшил baseline: score `95.87`.
+- `submissions/test_ratio_shrink_b0p06_c97_103.csv` и `submissions/test_ratio_shrink_b0p07_c98_102.csv` подняли уровень до `95.88`; текущим best выбран более консервативный `b0p06`.
 - `submissions/test_baseline_last_month.csv` остается очень сильным baseline: score `95.86`.
 - `submissions/test_ensemble_conservative_v1.csv` и `submissions/test_ensemble_conservative_v2.csv` повторили score `95.86`, но не улучшили baseline.
 - `submissions/test_last_month_mult_0995.csv` получил score `95.85`.

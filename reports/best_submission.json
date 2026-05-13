@@ -1,8 +1,8 @@
 {
-  "filename": "submissions/test_ratio_shrink_b0p05_c97_103.csv",
-  "model_name": "ratio_shrink_b0p05_c97_103",
-  "lb_score": 95.87,
-  "lb_mape": 4.13,
+  "filename": "submissions/test_ratio_shrink_b0p06_c97_103.csv",
+  "model_name": "ratio_shrink_b0p06_c97_103",
+  "lb_score": 95.88,
+  "lb_mape": 4.12,
   "verdict": "OK",
   "is_confirmed_by_leaderboard": true
 }
