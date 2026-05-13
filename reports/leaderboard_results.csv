@@ -20,3 +20,14 @@ submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
 2026-05-12T17:38:37+00:00,submissions/test_segment_alcohol_s0p05_k500_c97_103.csv,segment_alcohol_s0p05_k500_c97_103,,95.86,4.140000000000001,OK,"сегментная микропоправка alcohol, на уровне baseline"
 2026-05-12T21:05:34+00:00,submissions/test_ratio_shrink_b0p06_c97_103.csv,ratio_shrink_b0p06_c97_103,,95.88,4.1200000000000045,OK,"ratio_shrink beta 0.06, текущий лучший подтвержденный уровень"
 2026-05-12T21:05:34+00:00,submissions/test_ratio_shrink_b0p07_c98_102.csv,ratio_shrink_b0p07_c98_102,,95.88,4.1200000000000045,OK,"ratio_shrink beta 0.07, тот же LB score; менее консервативен"
+,submissions/test_cluster_blend_v1.csv,cluster_blend_v1,,95.91,4.090000000000003,OK,новый best: cluster blend по траектории
+,submissions/test_temporal_ridge_ratio_v1.csv,temporal_ridge_ratio_v1,,95.91,4.090000000000003,OK,"temporal ridge ratio, тот же LB score 95.91"
+,submissions/test_exploratory_segment_bias_v1.csv,exploratory_segment_bias_v1,,95.9,4.099999999999994,OK,исследовательская segment bias correction
+,submissions/test_selector_by_rto_decile_v1.csv,selector_by_rto_decile_v1,,95.89,4.109999999999999,OK,selector по decile РТО
+,submissions/test_decile_beta_ratio_v1.csv,decile_beta_ratio_v1,,95.88,4.1200000000000045,OK,разная beta ratio по decile РТО
+,submissions/test_weighted_oof_global_v1.csv,weighted_oof_global_v1,,95.88,4.1200000000000045,OK,глобальная OOF mixture
+,submissions/test_temporal_ensemble_ratio_v1.csv,temporal_ensemble_ratio_v1,,95.87,4.129999999999996,OK,temporal ensemble оказался хуже одиночного ridge
+,submissions/test_segment_calibrated_trend_v1.csv,segment_calibrated_trend_v1,,95.87,4.129999999999996,OK,segment calibration по тренду
+,submissions/test_segment_calibrated_region_rto_v1.csv,segment_calibrated_region_rto_v1,,95.86,4.140000000000001,OK,segment calibration region x rto
+,submissions/test_segment_calibrated_rto_decile_v1.csv,segment_calibrated_rto_decile_v1,,95.86,4.140000000000001,OK,segment calibration по decile РТО
+,submissions/test_october_high_rollback_v1.csv,october_high_rollback_v1,,95.83,4.170000000000002,OK,high October rollback оказался слишком вредным

@@ -26,7 +26,7 @@ mean_rel_delta_vs_current_best                NaN
 ## Сопоставленные строки
 
 ```text
-           experiment_name          model_name  fold10_mape  weighted_mape_127  safe_risk_score  exploratory_score  mean_rel_delta_vs_current_best  max_rel_delta_vs_current_best  lb_score  lb_mape
-ratio_shrink_b0p06_c97_103        ratio_shrink     6.360338           6.777467         6.777467           6.777467                        0.000000                       0.000000     95.88     4.12
-       baseline_last_month baseline_last_month     6.365661           6.782111         6.794908           6.786108                       -0.000338                       0.001517     95.86     4.14
+        experiment_name              model_name  fold10_mape  weighted_mape_127  safe_risk_score  exploratory_score  mean_rel_delta_vs_current_best  max_rel_delta_vs_current_best  lb_score  lb_mape
+temporal_ridge_ratio_v1 temporal_ridge_ratio_v1     6.164473           6.640786         6.768092           6.645996                       -0.000488                       0.028637     95.91     4.09
+       cluster_blend_v1        cluster_blend_v1     6.379679           6.794212         6.794212           6.794212                        0.000000                       0.000000     95.91     4.09
 ```

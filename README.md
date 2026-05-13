@@ -215,7 +215,7 @@ python scripts/analyze_submission_space.py
 python scripts/analyze_leaderboard_alignment.py
 ```
 
-Эксперименты строятся вокруг текущего best `ratio_shrink_b0p06_c97_103`, потому что плато 95.88 уже почти исчерпало простые микропоправки. `scripts/run_experiments.py` делает OOF-прогнозы, segment error mining, segment calibration, selector/gating, weighted mixture, temporal pattern model, clustering, outlier-specific и low-RTO MAPE-aware кандидатов. Новые кандидаты не копируются в `test.csv` автоматически; после run script текущий best-known восстанавливается обратно.
+Эксперименты строятся вокруг текущего best `cluster_blend_v1`, потому что новые LB-результаты подняли подтвержденный уровень до 95.91. `scripts/run_experiments.py` теперь развивает trajectory clustering v2, temporal models v2, analog forecasting v2, segment-specific temporal, MAPE-aware decile strategy, regime detection, residual correction v2 и hybrid cluster-temporal candidates. Новые кандидаты не копируются в `test.csv` автоматически; после run script текущий best-known восстанавливается обратно.
 
 Перед отправкой нового решения проверьте, не хуже ли оно ожидаемо: последнее отправленное решение идет в зачёт.
 
@@ -231,28 +231,27 @@ python scripts/analyze_leaderboard_alignment.py
 ## Текущий Лучший Подтверждённый Результат
 
 ```text
-submissions/test_ratio_shrink_b0p06_c97_103.csv
-score = 95.88
-LB MAPE = 4.12
+submissions/test_cluster_blend_v1.csv
+score = 95.91
+LB MAPE = 4.09
 ```
 
 Уже проверенные выводы leaderboard:
 
-- `submissions/test_ratio_shrink_b0p05_c97_103.csv` впервые улучшил baseline: score `95.87`.
-- `submissions/test_ratio_shrink_b0p06_c97_103.csv` и `submissions/test_ratio_shrink_b0p07_c98_102.csv` подняли уровень до `95.88`; текущим best выбран более консервативный `b0p06`.
-- `submissions/test_baseline_last_month.csv` остается очень сильным baseline: score `95.86`.
-- `submissions/test_ensemble_conservative_v1.csv` и `submissions/test_ensemble_conservative_v2.csv` повторили score `95.86`, но не улучшили baseline.
-- `submissions/test_last_month_mult_0995.csv` получил score `95.85`.
-- `submissions/test_last_month_mult_09975.csv` получил score `95.86`.
-- `submissions/test_last_month_mult_10025.csv` получил score `95.85`.
-- `submissions/test_last_month_mult_101.csv` получил score `95.73`, то есть множитель `1.010` хуже baseline.
-- `submissions/test_last_month_mult_102.csv` получил score `95.40`, то есть множитель `1.020` заметно хуже baseline.
-- `submissions/test_last_month_mult_1015.csv` получил CE; локальная проверка формата не выявила проблему.
-- `submissions/test_residual_centered_v1.csv` получил score `95.79`, поэтому residual-поправку пока не стоит развивать агрессивно.
-- Сегментные микропоправки по region/area/blend/alcohol дали `95.86`: они безопасны как слабый сигнал, но сами по себе не улучшили best.
+- `submissions/test_ratio_shrink_b0p06_c97_103.csv` поднял уровень до `95.88`, но дальше простые микропоправки уперлись в плато.
+- `submissions/test_cluster_blend_v1.csv` и `submissions/test_temporal_ridge_ratio_v1.csv` дали `95.91`; current best выбран `cluster_blend_v1`, потому что при равном LB он более консервативен по отклонению от предыдущего best.
+- `submissions/test_exploratory_segment_bias_v1.csv` дал `95.90`, значит адресные сегментные поправки могут быть полезны, но требуют контроля риска.
+- `submissions/test_selector_by_rto_decile_v1.csv` дал `95.89`; selector-семейство перспективно, но пока уступает cluster/temporal.
+- `submissions/test_october_high_rollback_v1.csv` дал `95.83`, поэтому грубый rollback октябрьских выбросов вреден.
+- Глобальные множители вверх `1.010` и `1.020` заметно ухудшили LB, поэтому глобальный сдвиг не развиваем.
 
 Для восстановления:
 
 ```bash
 python scripts/restore_best_submission.py
 ```
+
+## Текущий этап: trajectory/temporal
+
+После новых LB-результатов текущий подтвержденный уровень поднят до `95.91`. Лучшие направления: `cluster_blend_v1` и `temporal_ridge_ratio_v1`. Поэтому `scripts/run_experiments.py` теперь развивает trajectory clustering v2, temporal models v2, analog forecasting, regime detection, segment-specific temporal и hybrid cluster-temporal candidates.
+

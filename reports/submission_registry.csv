@@ -39,3 +39,17 @@ submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
 ,submissions/test_exploratory_segment_bias_v1.csv,exploratory_segment,6.846698601896261,,,,Исследовательская segment bias calibration по region x trend.
 ,submissions/test_selector_by_rto_decile_v1.csv,segment_selector,6.752064780145123,,,,"Безопасный selector по сегменту rto_decile: альтернативная модель получает вес 25%, остальное current best."
 ,submissions/test_october_high_rollback_v1.csv,october_outlier,6.771779989803658,,,,Безопасный High October rollback: высокий октябрь слегка откатывается к rolling median.
+,submissions/test_cluster_temporal_blend_v2.csv,cluster_temporal_blend_v2,6.713988432471245,,,,Равная смесь cluster v2 и temporal v2 с safety blend к current best.
+,submissions/test_cluster_path_k20_v2.csv,cluster_path_v2,6.824470047033438,,,,"Кластерная поправка по траектории k=20, усиленная относительно v1."
+,submissions/test_cluster_pca_k20_v2.csv,cluster_pca_v2,6.840501099836746,,,,PCA-like proxy: более широкий clip для cluster trajectory.
+,submissions/test_temporal_ridge_v2.csv,temporal_ridge_v2,6.639990436541474,,,,"Temporal ridge v2: больше beta, но blend с current best."
+,submissions/test_temporal_huber_v2.csv,temporal_huber_v2,6.6574508948009194,,,,"Robust linear proxy: более широкий temporal сигнал, ослабленный blend."
+,submissions/test_temporal_logratio_blend_v2.csv,temporal_logratio_blend_v2,6.732097706845919,,,,Лог-ratio temporal correction с мягким blend.
+,submissions/test_analog_segmented_v2.csv,analog_segmented_v2,6.789470752057097,,,,Segmented analog/selector по area x volatility.
+,submissions/test_analog_ratio_v2.csv,analog_ratio_v2,6.8005990983612135,,,,Более мягкий analog по ratio path.
+,submissions/test_segment_temporal_volatility_v1.csv,segment_temporal,6.792989718477002,,,,Segment-specific temporal model по volatility bucket.
+,submissions/test_segment_temporal_rto_decile_v1.csv,segment_temporal,6.820283631471961,,,,Segment-specific temporal model по decile РТО.
+,submissions/test_decile_cluster_temporal_v1.csv,decile_cluster_temporal,6.742752080683799,,,,Decile-specific веса cluster/temporal/current best.
+,submissions/test_regime_temporal_v1.csv,regime_temporal,6.7632915172722505,,,,Temporal применяется только в стабильных режимах.
+,submissions/test_oof_residual_ridge_v2.csv,oof_residual_ridge_v2,6.782782684849545,,,,"Log residual correction v2: Ridge, сильный shrink."
+,submissions/test_current_best_4digits.csv,current_best_4digits,,,,,"Диагностика округления: current best с 4 знаками после запятой, размер < 1 MB."
