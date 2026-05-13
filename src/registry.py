@@ -68,10 +68,10 @@ KNOWN_LEADERBOARD_ROWS = [
 ]
 
 KNOWN_BEST = {
-    "filename": "submissions/test_cluster_blend_v1.csv",
-    "model_name": "cluster_blend_v1",
-    "lb_score": 95.91,
-    "lb_mape": 4.09,
+    "filename": "submissions/test_cluster_temporal_blend_v2.csv",
+    "model_name": "cluster_temporal_blend_v2",
+    "lb_score": 95.93,
+    "lb_mape": 4.07,
     "verdict": "OK",
     "is_confirmed_by_leaderboard": True,
 }

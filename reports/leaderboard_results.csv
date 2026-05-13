@@ -31,3 +31,8 @@ submitted_at,filename,model_name,local_cv_mape,lb_score,lb_mape,verdict,comment
 ,submissions/test_segment_calibrated_region_rto_v1.csv,segment_calibrated_region_rto_v1,,95.86,4.140000000000001,OK,segment calibration region x rto
 ,submissions/test_segment_calibrated_rto_decile_v1.csv,segment_calibrated_rto_decile_v1,,95.86,4.140000000000001,OK,segment calibration по decile РТО
 ,submissions/test_october_high_rollback_v1.csv,october_high_rollback_v1,,95.83,4.170000000000002,OK,high October rollback оказался слишком вредным
+,submissions/test_temporal_ridge_v2.csv,temporal_ridge_v2,,95.9,4.099999999999994,OK,чистый temporal ridge v2 хуже нового best
+,submissions/test_temporal_huber_v2.csv,temporal_huber_v2,,95.91,4.090000000000003,OK,temporal huber/proxy на уровне предыдущего best
+,submissions/test_cluster_temporal_blend_v2.csv,cluster_temporal_blend_v2,,95.93,4.069999999999993,OK,новый best: cluster x temporal blend
+,submissions/test_decile_cluster_temporal_v1.csv,decile_cluster_temporal_v1,,95.92,4.079999999999998,OK,близкое направление: decile cluster x temporal
+,submissions/test_temporal_logratio_blend_v2.csv,temporal_logratio_blend_v2,,95.91,4.090000000000003,OK,temporal logratio blend на уровне предыдущего best

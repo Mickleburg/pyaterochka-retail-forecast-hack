@@ -1,48 +1,40 @@
-# Рекомендованные сабмиты
+# Срочные рекомендации
 
-Current best: `submissions/test_cluster_blend_v1.csv`, score `95.91`. После неудачной отправки восстановить: `python scripts/restore_best_submission.py`.
+Текущий best: `submissions/test_cluster_temporal_blend_v2.csv`, score `95.93`, LB MAPE `4.07`.
 
-## Safe candidates
+Главный вывод urgent-этапа: развиваем не чистый temporal, а связку `cluster_temporal_blend_v2` + `decile_cluster_temporal_v1`, потому что A дал `95.93`, B дал `95.92`, а чистый `temporal_ridge_v2` снизился до `95.90`.
 
-```text
-                           generated_submission         hypothesis_group  safe_risk_score  weighted_mape_127  mean_abs_relative_delta_vs_current_best  max_rel_delta_vs_current_best  share_changed_stores
-submissions/test_temporal_logratio_blend_v2.csv       temporal_models_v2         6.744010           6.732098                                 0.000851                       0.007423              1.000000
-     submissions/test_oof_residual_ridge_v2.csv              residual_v2         6.808431           6.782783                                 0.001759                       0.016441              0.999951
-           submissions/test_analog_ratio_v2.csv                analog_v2         6.810888           6.800599                                 0.000735                       0.005734              1.000000
- submissions/test_cluster_temporal_blend_v2.csv trajectory_clustering_v2         6.881485           6.713988                                 0.002675                       0.022346              1.000000
-       submissions/test_cluster_path_k20_v2.csv trajectory_clustering_v2         6.896170           6.824470                                 0.001901                       0.012113              1.000000
-```
-
-## Moderate candidates
+## Urgent Candidates
 
 ```text
-                               generated_submission         hypothesis_group  exploratory_score  weighted_mape_127  mean_abs_relative_delta_vs_current_best  max_rel_delta_vs_current_best  share_changed_stores
-             submissions/test_temporal_ridge_v2.csv       temporal_models_v2           6.645350           6.639990                                 0.002144                       0.023961              1.000000
-             submissions/test_temporal_huber_v2.csv       temporal_models_v2           6.662070           6.657451                                 0.001848                       0.026736              1.000000
-    submissions/test_decile_cluster_temporal_v1.csv               mape_aware           6.746201           6.742752                                 0.001380                       0.012148              1.000000
-            submissions/test_regime_temporal_v1.csv         regime_detection           6.764157           6.763292                                 0.000346                       0.009232              0.447296
-           submissions/test_analog_segmented_v2.csv                analog_v2           6.791192           6.789471                                 0.000689                       0.020428              0.877759
-submissions/test_segment_temporal_volatility_v1.csv         segment_temporal           6.804758           6.792990                                 0.002641                       0.068092              0.800000
-submissions/test_segment_temporal_rto_decile_v1.csv         segment_temporal           6.822636           6.820284                                 0.000941                       0.018614              0.699976
-            submissions/test_cluster_pca_k20_v2.csv trajectory_clustering_v2           6.859994           6.840501                                 0.002335                       0.020629              1.000000
+ priority filename                                                       type      mean_rel_delta_vs_A max_rel_delta_vs_A safe_risk
+ 1        submissions/test_blend_cluster_temporal_decile_90_10.csv       blend     0.000098            0.001077           0.000243
+ 2        submissions/test_blend_cluster_temporal_decile_80_20.csv       blend     0.000195            0.002153           0.000485
+ 3        submissions/test_blend_cluster_temporal_decile_70_30.csv       blend     0.000293            0.003230           0.000728
+ 4        submissions/test_blend_cluster_temporal_decile_50_50.csv       blend     0.000488            0.005383           0.001213
+ 5        submissions/test_selector_A_B_regime_w50.csv                   selector  0.000061            0.005136           0.000622
+ 6        submissions/test_selector_A_B_volatility_w50.csv               selector  0.000067            0.005221           0.000630
+ 7        submissions/test_blend_cluster_temporal_huber_90_10.csv        blend     0.000168            0.003004           0.000528
+ 8        submissions/test_blend_cluster_temporal_logratio_90_10.csv     blend     0.000182            0.001600           0.000385
+ 9        submissions/test_temporal_override_trend_v1.csv                override  0.000302            0.007877           0.001221
+ 10       submissions/test_cluster_temporal_blend_v3_decile_weighted.csv v3        0.000244            0.002691           0.000607
 ```
 
-## Exploratory candidates
+## Short-list Отправки
 
-```text
-Empty DataFrame
-Columns: [generated_submission, hypothesis_group, exploratory_score, weighted_mape_127, mean_abs_relative_delta_vs_current_best, max_rel_delta_vs_current_best, share_changed_stores]
-Index: []
-```
+1. `submissions/test_blend_cluster_temporal_decile_90_10.csv` — самый осторожный A/B blend.
+2. `submissions/test_blend_cluster_temporal_decile_80_20.csv` — чуть сильнее добавляет подтвержденный decile-сигнал.
+3. `submissions/test_blend_cluster_temporal_decile_70_30.csv` — умеренная проверка A/B.
+4. `submissions/test_selector_A_B_regime_w50.csv` — применяет decile-кандидат только в выбранных режимах.
+5. `submissions/test_selector_A_B_volatility_w50.csv` — проверяет сегменты волатильности.
+6. `submissions/test_blend_cluster_temporal_huber_90_10.csv` — осторожно добавляет temporal_huber.
+7. `submissions/test_blend_cluster_temporal_logratio_90_10.csv` — осторожно добавляет temporal_logratio.
+8. `submissions/test_cluster_temporal_blend_v3_decile_weighted.csv` — v3 как A/B blend с весом 25% decile.
 
-## Логика отправки
+## Что Не Развиваем Сейчас
 
-1. Сначала safe: проверяют новый сигнал без сильного риска.
-2. Затем moderate: trajectory/temporal/regime кандидаты, которые реально отличаются от current best.
-3. Exploratory отправлять после safe/moderate, если нужен шанс на скачок выше 95.91.
+- Чистый `temporal_ridge_v2`: LB `95.90`, хуже best.
+- `october_high_rollback`: LB `95.83`, направление вредное.
+- Aggressive residual и глобальные множители: ранее ухудшали LB.
+- Долгие AutoML/тяжелые модели: времени мало, urgent batch должен быть быстрым.
 
-Записать результат:
-
-```bash
-python scripts/record_leaderboard_result.py --file submissions/<file>.csv --model <model_name> --lb-score <score> --verdict OK --comment "комментарий"
-```
